@@ -45,6 +45,7 @@ const state = {
   horizon: 3, _simT: null,
   storesOn: false, storesLayer: null, storesMarkers: [], storesKey: null,
   paid: {}, payKey: null, payThen: "view", reportText: "", reportSrc: "",
+  deepReport: null, reportInputs: null,
 };
 
 const COLORS = {
@@ -97,6 +98,8 @@ async function init() {
   catch (e) { document.body.insertAdjacentHTML("afterbegin", `<div class="err" style="margin:12px">메타 로드 실패: ${esc(e.message)}</div>`); return; }
 
   loadPaid();
+  loadUser();
+  renderAccountBtn();
   state.regionOf = {};
   state.meta.districts.forEach((d) => { state.regionOf[d.gu] = d.region; });
 
@@ -384,6 +387,8 @@ function renderResults(p, reveal) {
   $("prov").innerHTML = `<span class="ico">${ICONS.info}</span><span><b>데이터:</b> ${esc(p.provenance.note)} 출처(연결 예정): ${esc(p.provenance.sources.map((s) => s.name).join(", "))}</span>`;
   state.fitFor = null;
   state.infraFor = null;
+  state.deepReport = null;
+  state.reportInputs = null;
   showTab("summary");
   staggerReveal(body);
   if (reveal) requestAnimationFrame(scrollToResults);
@@ -538,6 +543,7 @@ async function openListing(lid) {
     state.lastPred = r.prediction;
     renderResults(r.prediction, true);          // 결과 렌더(매물 카드는 숨겨짐)
     renderListingCard(l, r.analysis);            // 그 위에 매물 분석 카드 표시
+    state.reportInputs = { area: l.area_pyeong, rent: l.rent_manwon, deposit: l.deposit_manwon, premium: l.premium_manwon, capital: 0, target: 0 };
     highlightBubble(l.gu); highlightRegionChip(l.gu);
     if (state.listingsOn) loadListings();
     if (state.storesOn) loadStores();
@@ -580,9 +586,10 @@ function renderListingCard(l, a) {
 
 /* ---------------- LLM report ---------------- */
 async function loadReport(seq) {
-  const box = $("report-box"), srcEl = $("report-src");
-  srcEl.innerHTML = "";
-  box.innerHTML = `<span class="loading"><span class="spinner"></span> AI가 리포트를 작성하는 중… (Claude 호출)</span>`;
+  // 심층 리포트/잠금화면은 Claude 호출을 기다리지 않고 즉시 노출 (AI 총평만 뒤에 채움)
+  state.reportText = "";
+  state.reportSrc = "";
+  renderReportGated();
   const p = state.lastPred;
   try {
     const r = await api("/api/report", {
@@ -592,11 +599,13 @@ async function loadReport(seq) {
     if (seq !== state.predictSeq) return;          // 위치/업종 바뀌면 무시
     state.reportText = r.text;
     state.reportSrc = r.source;
-    renderReportGated();
+    if (reportUnlocked()) {
+      if (state.deepReport) renderDeep(state.deepReport);   // AI 총평 주입 (재조회 없음)
+    } else {
+      renderReportGated();                                   // 티저 갱신
+    }
   } catch (e) {
-    if (seq !== state.predictSeq) return;
-    state.reportText = "";
-    box.innerHTML = `<div class="err">${ICONS.warn}<span>리포트 생성 실패: ${esc(e.message)}</span></div>`;
+    if (seq !== state.predictSeq) return;          // 실패해도 심층 리포트는 이미 떠 있음
   }
 }
 
@@ -612,44 +621,263 @@ function savePaid() { try { localStorage.setItem("survimap_paid", JSON.stringify
 
 function renderReportGated() {
   const box = $("report-box"), srcEl = $("report-src");
-  if (!state.reportText) return;
-  if (isPaid()) {
-    srcEl.innerHTML = state.reportSrc === "claude"
-      ? `<span class="src-badge src-claude">${ICONS.spark} Claude</span>`
-      : `<span class="src-badge src-template">템플릿</span>`;
+  if (!state.lastPred) return;
+  if (reportUnlocked()) {
+    srcEl.innerHTML = `<span class="src-badge src-claude">${ICONS.spark} 심층 리포트</span>`;
     box.classList.add("unlocked");
-    box.innerHTML = `<div class="report-text">${esc(state.reportText)}</div>
-      <div class="report-dl">
-        <button type="button" class="ract" id="report-txt"><svg class="icon" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 12 5 5 5-5"/><path d="M5 21h14"/></svg> TXT 저장</button>
-        <button type="button" class="ract" id="report-pdf2"><svg class="icon" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 12 5 5 5-5"/><path d="M5 21h14"/></svg> PDF 저장</button>
-      </div>`;
-    $("report-txt").onclick = downloadReportTxt;
-    $("report-pdf2").onclick = exportPDF;
+    box.innerHTML = `
+      <div class="dr-inputs" id="dr-inputs">
+        <div class="dr-inrow">
+          <div class="dr-in"><label>면적</label><span class="dr-inw"><input id="dr-area" type="number" min="4"><i>평</i></span></div>
+          <div class="dr-in"><label>월세</label><span class="dr-inw"><input id="dr-rent" type="number" min="0"><i>만원</i></span></div>
+          <div class="dr-in"><label>보증금</label><span class="dr-inw"><input id="dr-deposit" type="number" min="0"><i>만원</i></span></div>
+          <div class="dr-in"><label>권리금</label><span class="dr-inw"><input id="dr-premium" type="number" min="0"><i>만원</i></span></div>
+          <div class="dr-in"><label>자기자본</label><span class="dr-inw"><input id="dr-capital" type="number" min="0"><i>만원</i></span></div>
+          <div class="dr-in"><label>목표 월순익</label><span class="dr-inw"><input id="dr-target" type="number" min="0"><i>만원</i></span></div>
+        </div>
+        <button class="btn sm dr-run" id="dr-run" type="button">${ICONS.spark} 내 조건으로 다시 계산</button>
+      </div>
+      <div class="dr-body" id="dr-body"></div>`;
+    $("dr-run").onclick = () => {
+      state.reportInputs = {
+        area: +$("dr-area").value || 15, rent: +$("dr-rent").value || 0,
+        deposit: +$("dr-deposit").value || 0, premium: +$("dr-premium").value || 0,
+        capital: +$("dr-capital").value || 0, target: +$("dr-target").value || 0,
+      };
+      loadDeepReport();
+    };
+    loadDeepReport();
   } else {
     srcEl.innerHTML = `<span class="src-badge src-lock">${LOCK_SVG} 유료</span>`;
     box.classList.remove("unlocked");
-    const teaser = String(state.reportText).replace(/\s+/g, " ").trim().slice(0, 56);
+    const teaser = state.reportText
+      ? esc(String(state.reportText).replace(/\s+/g, " ").trim().slice(0, 56)) + "…"
+      : "이 자리·업종의 3년 생존율, 손익분기·투자회수, 실패 시나리오와 임대료 협상, 더 나은 대안까지 담은 심층 리포트.";
+    const feats = [
+      ["📊", "손익분기·투자회수 시뮬", "내 예산·목표순익 기준 월 손익과 회수기간"],
+      ["🎯", "명확한 판정 + 실행 플레이북", "진입 여부 결론과 살아남는 구체 전략"],
+      ["⚠️", "실패 시나리오 3가지 + 대비책", "이 자리가 망하는 경로와 방어법"],
+      ["🤝", "임대료 협상 무기", "적정 임대료 vs 제시액 · 협상 목표가"],
+      ["📈", "상권 추세 · 더 나은 대안", "뜨는지/지는지 + 더 안전한 자리·업종"],
+    ];
     box.innerHTML = `
-      <div class="rl-teaser">${esc(teaser)}…</div>
+      <div class="rl-teaser">${teaser}</div>
       <div class="rl-lock">
-        <div class="rl-badge">${LOCK_SVG} 프리미엄 리포트</div>
-        <div class="rl-desc">이 자리·업종의 <b>생존 리포트 전체</b>와 저장(PDF·TXT)은 결제 후 열람할 수 있어요.</div>
+        <div class="rl-badge">${LOCK_SVG} 프리미엄 심층 리포트</div>
+        <ul class="rl-list">
+          ${feats.map((f) => `<li><span class="rl-ico">${f[0]}</span><span class="rl-lx"><b>${f[1]}</b><i>${f[2]}</i></span></li>`).join("")}
+        </ul>
+        <div class="rl-desc">억대가 걸린 결정, <b>숫자로 확인</b>하고 <b>PDF·TXT로 저장</b>해 은행·동업자 설득에 쓰세요.</div>
         <button type="button" class="btn rl-btn" id="report-unlock">₩9,900 결제하고 전체 보기</button>
+        <button type="button" class="rl-up" id="report-upgrade">구독 플랜으로 무제한 이용 →</button>
       </div>`;
     $("report-unlock").onclick = () => openCheckout("view");
+    $("report-upgrade").onclick = openPlans;
   }
 }
 function downloadReportTxt() {
-  if (!isPaid() || !state.lastPred) return;
+  if (!reportUnlocked() || !state.lastPred) return;
   const p = state.lastPred.input;
-  const body = `[SurviMap] ${regionLabel(p.gu)} ${p.gu} · ${p.industry_label} 생존 리포트\n\n${state.reportText}\n`;
+  const r = state.deepReport;
+  let body = `[SurviMap 심층 리포트] ${regionLabel(p.gu)} ${p.gu} · ${p.industry_label}\n${"=".repeat(46)}\n\n`;
+  if (r) {
+    const f = r.financials, v = r.verdict, rn = r.rent_nego, tr = r.trend;
+    body += `■ 종합 판정: ${v.label} — ${v.sub}\n`;
+    body += `  3년 생존율 ${r.survival.y3}% (수도권 평균 ${r.avg}%, 위험 ${r.hazard_ratio}배)\n\n`;
+    body += `■ 손익 (${r.input.area}평 기준)\n`;
+    body += `  월 예상매출 ${f.sales}만 / 영업이익 ${f.op_profit}만 (마진 ${f.margin_pct}%)\n`;
+    body += `  손익분기 매출 ${f.be_sales}만 (예상매출의 ${f.be_ratio}%)\n`;
+    body += `  초기투자 ${f.invest.total}만 / 투자회수 ${f.payback_months == null ? "난망(적자)" : f.payback_months + "개월"}\n`;
+    body += `  시나리오 월순익 — 낙관 ${f.scenarios.best.profit} / 기본 ${f.scenarios.base.profit} / 최악 ${f.scenarios.worst.profit}만\n\n`;
+    body += `■ 임대료 협상: 제시 ${rn.offered}만 vs 적정 ${rn.fair}만 (${rn.diff_pct > 0 ? "+" : ""}${rn.diff_pct}%) → ${rn.verdict}\n`;
+    body += `  임대료/매출 ${rn.rent_to_sales}% (건강선 ${rn.healthy_max}% 이하) · 협상 목표 ${rn.target}만\n\n`;
+    body += `■ 상권 추세: ${tr.direction} (최근 2년 유동 ${tr.foot_change_pct}%, 공실 ${tr.vacancy_change_pp}%p)\n\n`;
+    body += `■ 실패 시나리오\n${r.failures.map((x, i) => `  ${i + 1}) ${x.title} — ${x.desc}\n     대비책: ${x.guard}`).join("\n")}\n\n`;
+    if (r.alternatives.listings.length)
+      body += `■ 더 안전한 대안 자리\n${r.alternatives.listings.map((l) => `  · ${regionLabel(l.gu)} ${l.gu} ${l.floor} ${l.area_pyeong}평 / 월 ${l.rent_manwon}만 → 3년 생존 ${l.y3}%`).join("\n")}\n\n`;
+    if (r.alternatives.industries.length)
+      body += `■ 이 자리에 더 맞는 업종: ${r.alternatives.industries.map((x) => `${x.label}(${x.y3}%)`).join(", ")}\n\n`;
+  }
+  if (state.reportText) body += `■ AI 총평\n${state.reportText}\n`;
   const blob = new Blob([body], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.download = `SurviMap_${p.gu}_${p.industry_label}.txt`;
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
-  toast("리포트를 저장했어요");
+  toast("심층 리포트를 저장했어요");
+}
+
+/* ---------------- 심층 리포트 (유료) ---------------- */
+async function loadDeepReport() {
+  const p = state.lastPred && state.lastPred.input;
+  if (!p) return;
+  const body = $("dr-body");
+  if (!body) return;
+  const ri = state.reportInputs || {};
+  const q = new URLSearchParams();
+  q.set("gu", p.gu); q.set("industry", p.industry); q.set("lat", p.lat); q.set("lon", p.lon);
+  q.set("area", ri.area || 15);
+  ["rent", "deposit", "premium"].forEach((k) => { if (ri[k] != null && ri[k] !== "" && ri[k] !== 0) q.set(k, ri[k]); });
+  q.set("capital", ri.capital || 0);
+  q.set("target", ri.target || 0);
+  body.innerHTML = `<div class="dr-load"><span class="spinner"></span> 맥킨지급 심층 리포트를 생성하는 중…</div>`;
+  try {
+    const r = await api(`/api/deep_report?${q.toString()}`);
+    state.deepReport = r;
+    state.reportInputs = { area: r.input.area, rent: r.input.rent, deposit: r.input.deposit, premium: r.input.premium, capital: r.input.capital, target: r.input.target };
+    ["area", "rent", "deposit", "premium", "capital", "target"].forEach((k) => { const el = $("dr-" + k); if (el) el.value = state.reportInputs[k]; });
+    renderDeep(r);
+    if (state.pendingPrint) { state.pendingPrint = false; setTimeout(doPrint, 250); }  // 결제→PDF 흐름
+  } catch (e) {
+    body.innerHTML = `<div class="err">${ICONS.warn}<span>리포트 생성 실패: ${esc(e.message)}</span></div>`;
+  }
+}
+
+const drWon = (x) => (x == null ? "—" : Number(x).toLocaleString());
+
+function drSpark(series, dir) {
+  const w = 240, h = 46, min = Math.min(...series), max = Math.max(...series), rng = (max - min) || 1;
+  const pts = series.map((v, i) => `${((i / (series.length - 1)) * w).toFixed(1)},${(h - 4 - ((v - min) / rng) * (h - 8)).toFixed(1)}`).join(" ");
+  const col = dir === "상승" ? "var(--good)" : dir === "하락" ? "var(--critical)" : "var(--warning)";
+  const last = pts.split(" ").pop().split(",");
+  return `<svg class="dr-spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${last[0]}" cy="${last[1]}" r="3.2" fill="${col}"/></svg>`;
+}
+
+function renderDeep(r) {
+  const f = r.financials, v = r.verdict, rn = r.rent_nego, tr = r.trend, co = r.cohort, alt = r.alternatives;
+  const w = drWon;
+  const opCls = f.op_profit >= 0 ? "pos" : "neg";
+  const payback = f.payback_months == null ? "회수 난망" : `${f.payback_months}개월`;
+  const plRow = (label, val, kind) => {
+    const cls = kind === "total" ? "pl-total" : kind === "base" ? "pl-base" : "";
+    const bcls = kind === "total" ? (val >= 0 ? "pos" : "neg") : "";
+    return `<div class="pl-row ${cls}"><span>${label}</span><b class="${bcls}">${w(val)}<i>만</i></b></div>`;
+  };
+  const scen = (label, profit, kind) =>
+    `<div class="scen ${kind}"><div class="scen-l">${label}</div><div class="scen-v ${profit >= 0 ? "pos" : "neg"}">${profit > 0 ? "+" : ""}${w(profit)}<i>만</i></div></div>`;
+  const failUnit = (x) => (x.title.includes("임대") ? "만원" : "%p");
+
+  const html = `
+  <div class="dr-hero v-${v.band}">
+    <div class="dr-hero-row">
+      <span class="dr-vlabel">${esc(v.label)}</span>
+      <span class="dr-vtag">${regionLabel(r.input.gu)} ${esc(r.input.gu)} · ${esc(r.input.industry_label)} · ${r.input.area}평</span>
+    </div>
+    <div class="dr-vsub">${esc(v.sub)}</div>
+    <div class="dr-kpis">
+      <div class="dr-kpi"><span>3년 생존율</span><b style="color:${bandColor(r.band)}">${r.survival.y3}%</b></div>
+      <div class="dr-kpi"><span>예상 월순익</span><b class="${opCls}">${f.op_profit > 0 ? "+" : ""}${w(f.op_profit)}만</b></div>
+      <div class="dr-kpi"><span>투자 회수</span><b class="${f.payback_months == null ? "neg" : ""}">${payback}</b></div>
+      <div class="dr-kpi"><span>총 투자금</span><b>${w(f.invest.total)}만</b></div>
+    </div>
+  </div>
+
+  ${state.reportText ? `<div class="dr-ai"><div class="dr-ai-h">${ICONS.spark} AI 총평</div><div class="dr-ai-t">${esc(state.reportText)}</div></div>` : ""}
+
+  <div class="dr-sec">
+    <div class="dr-eyebrow"><span class="dr-no">01</span> 손익분기 · 투자회수 시뮬</div>
+    <div class="pl">
+      ${plRow("월 예상매출", f.sales, "base")}
+      ${plRow("− 원재료·매입", -f.cogs)}
+      ${plRow("− 인건비", -f.labor)}
+      ${plRow("− 임대료", -f.rent)}
+      ${plRow("− 관리비", -f.maint)}
+      ${plRow("− 기타(마케팅·공과)", -f.etc)}
+      ${plRow("= 영업이익 (월)", f.op_profit, "total")}
+    </div>
+    <div class="be-wrap">
+      <div class="be-labels"><span>손익분기 매출 <b>${w(f.be_sales)}만</b></span><span>영업이익률 <b class="${opCls}">${f.margin_pct}%</b></span></div>
+      <div class="be-bar">
+        <div class="be-fill ${f.sales >= f.be_sales ? "ok" : "bad"}" style="width:${Math.min(100, (f.sales / Math.max(f.sales, f.be_sales)) * 100).toFixed(1)}%"></div>
+        <div class="be-mark" style="left:${Math.min(99, (f.be_sales / Math.max(f.sales, f.be_sales)) * 100).toFixed(1)}%"></div>
+      </div>
+      <div class="be-cap">${f.sales >= f.be_sales ? `손익분기를 <b class="pos">${w(f.sales - f.be_sales)}만원</b> 넘겨 흑자 구간` : `손익분기까지 매출을 <b class="neg">${w(f.be_sales - f.sales)}만원</b> 더 올려야 함`}</div>
+    </div>
+    <div class="scen-row">
+      ${scen("낙관 (상위 25%)", f.scenarios.best.profit, "good")}
+      ${scen("기본", f.scenarios.base.profit, "base")}
+      ${scen("최악 (하위 25%)", f.scenarios.worst.profit, "bad")}
+    </div>
+    <div class="dr-invest">
+      <div class="di"><span>초기 투자금</span><b>${w(f.invest.total)}만원</b><i>보증금 ${w(f.invest.deposit)} · 권리금 ${w(f.invest.premium)} · 인테리어 ${w(f.invest.interior)} · 운영자금 ${w(f.invest.opening)}</i></div>
+      <div class="di"><span>투자 회수기간</span><b class="${f.payback_months == null ? "neg" : ""}">${payback}</b><i>회수대상 ${w(f.invest.sunk)}만원(권리+인테리어+운영, 보증금 제외)</i></div>
+      ${f.target ? `<div class="di"><span>목표 월순익 대비</span><b class="${f.target_gap >= 0 ? "pos" : "neg"}">${f.target_gap > 0 ? "+" : ""}${w(f.target_gap)}만</b><i>목표 ${w(f.target)}만원 · ${f.target_gap >= 0 ? "달성 가능" : "미달"}</i></div>` : ""}
+    </div>
+  </div>
+
+  <div class="dr-sec">
+    <div class="dr-eyebrow"><span class="dr-no">02</span> 살아남는 실행 플레이북</div>
+    ${r.playbook.strengths.length ? `<div class="pb-h pos">받쳐주는 강점</div>${r.playbook.strengths.map((s) => `<div class="pb-row"><span class="pb-pp pos">+${s.pp}%p</span><span>${esc(s.label)}</span></div>`).join("")}` : ""}
+    <div class="pb-h neg">개선해야 살아남는다</div>
+    ${r.playbook.actions.length ? r.playbook.actions.map((a) => `<div class="pb-act"><div class="pb-act-h"><span class="pb-pp neg">${a.pp}%p</span><b>${esc(a.label)}</b></div><div class="pb-act-t">${esc(a.action)}</div></div>`).join("") : `<div class="dr-note">두드러진 약점이 없습니다. 기본기(입지·객단가)만 지키면 안정적입니다.</div>`}
+  </div>
+
+  <div class="dr-sec">
+    <div class="dr-eyebrow"><span class="dr-no">03</span> 이렇게 망한다 — 실패 시나리오</div>
+    ${r.failures.map((x, i) => `<div class="fail"><div class="fail-h"><span class="fail-n">${i + 1}</span><b>${esc(x.title)}</b><span class="fail-imp">${x.impact}${failUnit(x)}</span></div><div class="fail-d">${esc(x.desc)}</div><div class="fail-g"><b>대비책</b> ${esc(x.guard)}</div></div>`).join("")}
+  </div>
+
+  <div class="dr-sec">
+    <div class="dr-eyebrow"><span class="dr-no">04</span> 임대료 협상 무기</div>
+    <div class="rn-head"><span class="rn-verdict v-${rn.band}">${esc(rn.verdict)}</span><span class="rn-sum">제시 <b>${w(rn.offered)}만</b> vs 적정 <b>${w(rn.fair)}만</b> <em class="${rn.diff_pct > 0 ? "neg" : "pos"}">(${rn.diff_pct > 0 ? "+" : ""}${rn.diff_pct}%)</em></span></div>
+    <div class="rn-bars">
+      <div class="rn-line"><span>제시</span><div class="rn-track"><div class="rn-fill off" style="width:${Math.min(100, (rn.offered / Math.max(rn.offered, rn.fair)) * 100).toFixed(1)}%"></div></div><em>${w(rn.offered)}만</em></div>
+      <div class="rn-line"><span>적정</span><div class="rn-track"><div class="rn-fill fair" style="width:${Math.min(100, (rn.fair / Math.max(rn.offered, rn.fair)) * 100).toFixed(1)}%"></div></div><em>${w(rn.fair)}만</em></div>
+    </div>
+    <div class="dr-note">평당 제시 ${rn.per_pyeong}만 vs 적정 ${rn.fair_per_pyeong}만 · 임대료/매출 <b class="${rn.rent_to_sales > rn.healthy_max ? "neg" : "pos"}">${rn.rent_to_sales}%</b> (건강선 ${rn.healthy_max}% 이하)</div>
+    <div class="rn-target">🎯 협상 목표가 <b>월 ${w(rn.target)}만원</b> — 위 적정가·주변 시세를 근거로 제시하세요.</div>
+  </div>
+
+  <div class="dr-sec">
+    <div class="dr-eyebrow"><span class="dr-no">05</span> 상권 추세 — 뜨는가 지는가</div>
+    <div class="tr-head">
+      <span class="tr-dir d-${tr.direction === "상승" ? "up" : tr.direction === "하락" ? "down" : "flat"}">${tr.direction}</span>
+      ${drSpark(tr.series, tr.direction)}
+    </div>
+    <div class="tr-stats">
+      <div><span>유동인구 (최근 2년)</span><b class="${tr.foot_change_pct >= 0 ? "pos" : "neg"}">${tr.foot_change_pct > 0 ? "+" : ""}${tr.foot_change_pct}%</b></div>
+      <div><span>공실률 (최근 2년)</span><b class="${tr.vacancy_change_pp <= 0 ? "pos" : "neg"}">${tr.vacancy_change_pp > 0 ? "+" : ""}${tr.vacancy_change_pp}%p</b></div>
+    </div>
+    <div class="dr-note">※ 추세는 프로토타입 추정치입니다. 실데이터(생활인구·R-ONE 공실) 연결 시 실측으로 대체됩니다.</div>
+  </div>
+
+  <div class="dr-sec">
+    <div class="dr-eyebrow"><span class="dr-no">06</span> 더 나은 대안</div>
+    ${alt.listings.length ? `<div class="alt-h">예산 안 · 3년 생존율이 더 높은 자리</div>${alt.listings.map((l) => `<button type="button" class="alt-row" data-lid="${esc(l.id)}"><span class="alt-main"><b>${regionLabel(l.gu)} ${esc(l.gu)} · ${esc(l.floor)} ${l.area_pyeong}평</b><i>보증 ${w(l.deposit_manwon)} / 월 ${w(l.rent_manwon)}만 · ${esc(l.verdict)}</i></span><span class="alt-y3" style="color:${bandColor(l.band)}">${l.y3}%</span></button>`).join("")}` : `<div class="dr-note">예산 조건에서 이 자리보다 뚜렷이 나은 대안을 찾지 못했습니다 — 현재 자리가 경쟁력 있다는 신호입니다.</div>`}
+    ${alt.industries.length ? `<div class="alt-h">이 자리에 더 맞는 업종</div>${alt.industries.map((x) => `<button type="button" class="alt-row alt-ind" data-key="${esc(x.industry)}"><span class="alt-main"><b>${esc(x.label)}</b><i>같은 자리에서 더 오래 살아남는 업종</i></span><span class="alt-y3" style="color:${bandColor(x.band)}">${x.y3}%</span></button>`).join("")}` : ""}
+  </div>
+
+  <div class="dr-sec">
+    <div class="dr-eyebrow"><span class="dr-no">07</span> 실측 근거 — 유사 점포 이력</div>
+    <div class="co-grid">
+      <div class="co"><span>실측 코호트</span><b>${w(co.n)}개</b></div>
+      <div class="co"><span>3년 생존</span><b style="color:${bandColor(bandFor(co.survival_3y))}">${co.survival_3y}%</b></div>
+      <div class="co"><span>중위 생존</span><b>${co.median_reached ? co.median_months + "개월" : "60개월+"}</b></div>
+      <div class="co"><span>반경 ${co.radius_m}m 동종</span><b>약 ${co.competition_count}개</b></div>
+    </div>
+    <div class="dr-note">동일 지역·업종의 유사 점포 생존 이력(Kaplan–Meier)과 반경 내 실제 경쟁 밀도를 근거로 산출했습니다.</div>
+  </div>
+
+  <div class="dr-foot">
+    <div class="dr-prov">${esc((r.provenance && r.provenance.note) || "")}</div>
+    <div class="report-dl">
+      <button type="button" class="ract" id="report-txt"><svg class="icon" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 12 5 5 5-5"/><path d="M5 21h14"/></svg> TXT 저장</button>
+      <button type="button" class="ract" id="report-pdf2"><svg class="icon" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 12 5 5 5-5"/><path d="M5 21h14"/></svg> PDF 저장</button>
+    </div>
+  </div>`;
+
+  $("dr-body").innerHTML = html;
+  $("report-txt").onclick = downloadReportTxt;
+  $("report-pdf2").onclick = exportPDF;
+  document.querySelectorAll("#dr-body .alt-row[data-lid]").forEach((el) => {
+    el.onclick = () => { showTab("summary"); openListing(el.dataset.lid); };
+  });
+  document.querySelectorAll("#dr-body .alt-ind[data-key]").forEach((el) => {
+    el.onclick = () => { selectIndustry(el.dataset.key); };
+  });
 }
 function openCheckout(then) {
   if (!state.lastPred) return;
@@ -675,9 +903,9 @@ function payNow() {
     if (state.payKey) { state.paid[state.payKey] = true; savePaid(); }
     btn.disabled = false; btn.textContent = orig;
     closePay();
+    if (state.payThen === "pdf") state.pendingPrint = true;  // 심층 리포트 렌더 완료 후 인쇄
     renderReportGated();
     toast("결제 완료 🎉 리포트가 열렸어요");
-    if (state.payThen === "pdf") setTimeout(doPrint, 250);
   }, 1100);
 }
 
@@ -741,7 +969,7 @@ $("about-modal").addEventListener("keydown", (e) => {   // Tab 포커스 트랩
   if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeAbout(); closeBudget(); closePay(); } });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeAbout(); closeBudget(); closePay(); closeAuth(); closePlans(); closeAccount(); } });
 
 /* ---------------- 분석창 접기/펼치기 ---------------- */
 function togglePanel() {
@@ -850,8 +1078,10 @@ async function runRecommend() {
   } catch (e) { box.innerHTML = `<div class="err">${ICONS.warn}<span>${esc(e.message)}</span></div>`; }
 }
 function renderRec(list) {
+  state._recList = list;
   if (!list.length) { $("rec-list").innerHTML = `<div class="rec-empty">조건에 맞는 매물이 없어요. 예산을 넓혀보세요.</div>`; return; }
-  $("rec-list").innerHTML = `<div class="rec-cap">예산 안 · 생존율 높은 순 ${list.length}곳</div>` + list.map((r, i) => `
+  const csvLabel = planHas("csv") ? "CSV 내보내기" : "CSV · 법인 전용 🔒";
+  $("rec-list").innerHTML = `<div class="rec-cap"><span>예산 안 · 생존율 높은 순 ${list.length}곳</span><button type="button" class="ract rec-csv" id="rec-csv">${csvLabel}</button></div>` + list.map((r, i) => `
     <button type="button" class="rec-row" data-id="${esc(r.id)}">
       <span class="rec-rank">${i + 1}</span>
       <span class="rec-main">
@@ -863,6 +1093,7 @@ function renderRec(list) {
   document.querySelectorAll("#rec-list .rec-row").forEach((el) => {
     el.onclick = () => { closeBudget(); openListing(el.dataset.id); };
   });
+  const csvEl = $("rec-csv"); if (csvEl) csvEl.onclick = exportRecCsv;
 }
 
 /* ---------------- 공유 · PDF ---------------- */
@@ -885,14 +1116,11 @@ function shareLink() {
   } else { toast(url); }
 }
 function exportPDF() {
-  if (!isPaid()) { openCheckout("pdf"); return; }   // 리포트 포함 저장은 결제 후
+  if (!reportUnlocked()) { openCheckout("pdf"); return; }   // 리포트 포함 저장은 결제/구독 후
   doPrint();
 }
 function doPrint() {
-  document.querySelectorAll("#tab-panels .tabpane").forEach((p) => p.classList.remove("is-hidden"));  // 인쇄용 전체 표시
-  if (state.chart) state.chart.resize();
-  const restore = () => { showTab(state.tab); window.removeEventListener("afterprint", restore); };
-  window.addEventListener("afterprint", restore);
+  // 인쇄 CSS가 '리포트 탭'만 문서 흐름으로 펼쳐 출력 — 화면 탭 상태를 건드리지 않음
   requestAnimationFrame(() => window.print());
 }
 
@@ -970,6 +1198,146 @@ function resetSim() {
   const so = $("sim-out"); if (so) so.innerHTML = `<div class="so-hint">위 3개 슬라이더를 움직이면 생존율이 실시간으로 바뀝니다.</div>`;
 }
 
+/* ---------------- 계정 · 플랜 (B2C / B2B) ---------------- */
+const PERSON_SVG = '<svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>';
+const PLANS = {
+  free:       { key: "free", type: "personal", name: "Free", priceLabel: "₩0",
+                perks: ["지도·요약·업종추천 무료", "실제 점포·예산추천(기본)", "리포트는 건당 ₩9,900"],
+                feat: { report: false, save: false, whatif: "basic", csv: false, api: false, seats: 1 } },
+  pro:        { key: "pro", type: "personal", name: "개인 Pro", priceLabel: "₩9,900/월",
+                perks: ["리포트 무제한 열람", "PDF·TXT 저장", "what-if 시뮬레이터 풀", "예비 창업자용"],
+                feat: { report: true, save: true, whatif: "full", csv: false, api: false, seats: 1 } },
+  business:   { key: "business", type: "business", name: "Business", priceLabel: "₩99,000/월",
+                perks: ["Pro 전체 기능", "팀 5석 공유", "CSV 데이터 내보내기", "브랜딩 리포트·우선지원"],
+                feat: { report: true, save: true, whatif: "full", csv: true, api: false, seats: 5 } },
+  enterprise: { key: "enterprise", type: "business", name: "Enterprise", priceLabel: "문의",
+                perks: ["Business 전체", "생존 스코어 API", "대량·배치 조회", "전용 지원·SLA"],
+                feat: { report: true, save: true, whatif: "full", csv: true, api: true, seats: "무제한" } },
+};
+function usersDB() { try { return JSON.parse(localStorage.getItem("survimap_users") || "{}") || {}; } catch (e) { return {}; } }
+function saveUsersDB(db) { try { localStorage.setItem("survimap_users", JSON.stringify(db)); } catch (e) { /* */ } }
+function loadUser() { try { const s = localStorage.getItem("survimap_session"); const db = usersDB(); state.user = (s && db[s]) ? db[s] : null; } catch (e) { state.user = null; } }
+function currentPlan() { return state.user ? (PLANS[state.user.plan] || PLANS.free) : PLANS.free; }
+function planHas(f) { const v = currentPlan().feat[f]; return f === "whatif" ? v : !!v; }
+function reportUnlocked() { return planHas("report") || isPaid(); }
+
+function renderAccountBtn() {
+  const b = $("account-btn");
+  if (state.user) {
+    const pl = currentPlan();
+    b.classList.add("logged");
+    b.innerHTML = `<span class="acc-name">${esc(state.user.name || state.user.email)}</span><span class="acc-plan plan-${pl.key}">${esc(pl.name)}</span>`;
+    b.title = "계정 · 플랜";
+  } else {
+    b.classList.remove("logged");
+    b.innerHTML = `${PERSON_SVG}<span>로그인</span>`;
+    b.title = "로그인 · 회원가입";
+  }
+}
+
+/* 회원가입 / 로그인 */
+function openAuth(mode) { setAuthTab(mode || "signup"); setSignupType("personal"); $("li-err").classList.add("hidden"); $("auth-modal").classList.remove("hidden"); }
+function closeAuth() { $("auth-modal").classList.add("hidden"); }
+function setAuthTab(mode) {
+  document.querySelectorAll("#auth-tabs .atab").forEach((t) => t.classList.toggle("active", t.dataset.tab === mode));
+  $("signup-pane").classList.toggle("hidden", mode !== "signup");
+  $("login-pane").classList.toggle("hidden", mode !== "login");
+}
+function setSignupType(t) {
+  state._suType = t;
+  document.querySelectorAll("#su-type .seg-b").forEach((b) => b.classList.toggle("active", b.dataset.t === t));
+  $("su-biz").classList.toggle("hidden", t !== "business");
+  renderSignupPlans(t);
+}
+function renderSignupPlans(t) {
+  const keys = t === "business" ? ["business", "enterprise"] : ["free", "pro"];
+  state._suPlan = keys[0];
+  $("su-plans").innerHTML = keys.map((k) => { const p = PLANS[k]; return `
+    <button type="button" class="plan-pick ${k === state._suPlan ? "sel" : ""}" data-k="${k}">
+      <div class="pp-top"><span class="pp-name">${esc(p.name)}</span><span class="pp-price">${esc(p.priceLabel)}</span></div>
+      <div class="pp-perk">${esc(p.perks[0])}</div></button>`; }).join("");
+  document.querySelectorAll("#su-plans .plan-pick").forEach((el) => el.onclick = () => {
+    state._suPlan = el.dataset.k;
+    document.querySelectorAll("#su-plans .plan-pick").forEach((x) => x.classList.toggle("sel", x.dataset.k === el.dataset.k));
+  });
+}
+function doSignup() {
+  const t = state._suType || "personal";
+  const email = $("su-email").value.trim();
+  if (!email) { toast("이메일을 입력하세요"); return; }
+  const user = { type: t, name: $("su-name").value.trim() || (t === "business" ? "담당자" : "회원"), email, plan: state._suPlan };
+  if (t === "business") { user.company = $("su-company").value.trim(); user.bizNo = $("su-bizno").value.trim(); }
+  const db = usersDB(); db[email] = user; saveUsersDB(db);
+  try { localStorage.setItem("survimap_session", email); } catch (e) { /* */ }
+  state.user = user; closeAuth(); renderAccountBtn(); renderReportGated();
+  toast(`${PLANS[user.plan].name} · ${t === "business" ? "법인" : "개인"} 가입 완료 🎉`);
+}
+function doLogin() {
+  const email = $("li-email").value.trim(); const db = usersDB();
+  if (!db[email]) { $("li-err").textContent = "가입된 계정이 없어요. 먼저 회원가입 해주세요."; $("li-err").classList.remove("hidden"); return; }
+  try { localStorage.setItem("survimap_session", email); } catch (e) { /* */ }
+  state.user = db[email]; closeAuth(); renderAccountBtn(); renderReportGated(); toast("로그인되었습니다");
+}
+function logout() { try { localStorage.removeItem("survimap_session"); } catch (e) { /* */ } state.user = null; closeAccount(); renderAccountBtn(); renderReportGated(); toast("로그아웃되었습니다"); }
+
+/* 계정 메뉴 */
+function openAccountMenu() {
+  if (!state.user) { openAuth("signup"); return; }
+  const pl = currentPlan(), u = state.user;
+  $("account-body").innerHTML = `
+    <div class="ac-row"><span>유형</span><b>${u.type === "business" ? "법인 (B2B)" : "개인 (B2C)"}</b></div>
+    ${u.company ? `<div class="ac-row"><span>회사</span><b>${esc(u.company)}</b></div>` : ""}
+    <div class="ac-row"><span>이메일</span><b>${esc(u.email)}</b></div>
+    <div class="ac-row"><span>플랜</span><b class="acc-plan plan-${pl.key}">${esc(pl.name)}</b></div>
+    ${pl.feat.api ? `<div class="ac-api"><div class="ac-api-k">생존 스코어 API 키 (데모)</div><code>sk_live_${btoa(unescape(encodeURIComponent(u.email))).replace(/[^a-zA-Z0-9]/g, "").slice(0, 16)}</code></div>` : ""}
+    <div class="ac-btns"><button class="btn" id="ac-plans" type="button">요금제 보기·변경</button><button class="btn ghost" id="ac-logout" type="button">로그아웃</button></div>`;
+  $("ac-plans").onclick = () => { closeAccount(); openPlans(); };
+  $("ac-logout").onclick = logout;
+  $("account-modal").classList.remove("hidden");
+}
+function closeAccount() { $("account-modal").classList.add("hidden"); }
+
+/* 요금제 */
+function openPlans() { renderPlans(); $("plans-modal").classList.remove("hidden"); }
+function closePlans() { $("plans-modal").classList.add("hidden"); }
+function renderPlans() {
+  const cur = state.user ? state.user.plan : null;
+  const group = (title, keys) => `
+    <div class="plan-col">
+      <div class="plan-col-h">${title}</div>
+      ${keys.map((k) => { const p = PLANS[k]; return `
+        <div class="plan-card ${k === cur ? "cur" : ""}">
+          <div class="pc-name">${esc(p.name)}</div>
+          <div class="pc-price">${esc(p.priceLabel)}</div>
+          <ul class="pc-perks">${p.perks.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+          <button type="button" class="btn ${k === cur ? "ghost" : ""} pc-btn" data-k="${k}" ${k === cur ? "disabled" : ""}>${k === cur ? "현재 플랜" : (p.priceLabel === "문의" ? "문의하기" : "이 플랜 선택")}</button>
+        </div>`; }).join("")}
+    </div>`;
+  $("plans-body").innerHTML = group("개인 · B2C", ["free", "pro"]) + group("법인 · B2B", ["business", "enterprise"]);
+  document.querySelectorAll("#plans-body .pc-btn").forEach((el) => el.onclick = () => choosePlan(el.dataset.k));
+}
+function choosePlan(k) {
+  const p = PLANS[k];
+  if (!state.user) { closePlans(); openAuth("signup"); setSignupType(p.type); toast("가입하면 이 플랜이 적용됩니다"); return; }
+  if (k === "enterprise") toast("Enterprise는 영업팀 문의로 진행됩니다 (데모)");
+  state.user.plan = k; const db = usersDB(); db[state.user.email] = state.user; saveUsersDB(db);
+  renderPlans(); renderAccountBtn(); renderReportGated(); toast(`${p.name} 플랜으로 변경됐어요`);
+}
+
+/* 추천 매물 CSV 내보내기 (법인 전용) */
+function exportRecCsv() {
+  if (!planHas("csv")) { toast("CSV 내보내기는 법인(Business+) 플랜 전용이에요"); openPlans(); return; }
+  const rows = state._recList || [];
+  if (!rows.length) { toast("먼저 추천을 받아주세요"); return; }
+  const head = ["지역", "층", "면적(평)", "보증금(만원)", "월세(만원)", "3년생존율(%)", "임대료판정"];
+  const body = rows.map((r) => [`${regionLabel(r.gu)} ${r.gu}`, r.floor, r.area_pyeong, r.deposit_manwon, r.rent_manwon, r.y3, r.verdict].join(","));
+  const blob = new Blob(["﻿" + [head.join(","), ...body].join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = "SurviMap_추천매물.csv";
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  toast("CSV로 저장했어요");
+}
+
 /* ---------------- events ---------------- */
 $("panel-toggle").onclick = togglePanel;
 document.querySelectorAll("#region-scope .scope-btn").forEach((b) => { b.onclick = () => setScope(b.dataset.scope); });
@@ -988,6 +1356,19 @@ $("pay-close").onclick = closePay;
 $("pay-run").onclick = payNow;
 document.querySelectorAll("#pay-methods .pm").forEach((b) => { b.onclick = () => setPayMethod(b.dataset.m); });
 $("pay-modal").addEventListener("click", (e) => { if (e.target === $("pay-modal")) closePay(); });
+$("account-btn").onclick = openAccountMenu;
+document.querySelectorAll("#auth-tabs .atab").forEach((t) => { t.onclick = () => setAuthTab(t.dataset.tab); });
+document.querySelectorAll("#su-type .seg-b").forEach((b) => { b.onclick = () => setSignupType(b.dataset.t); });
+$("su-run").onclick = doSignup;
+$("li-run").onclick = doLogin;
+$("go-login").onclick = () => setAuthTab("login");
+$("go-signup").onclick = () => setAuthTab("signup");
+$("auth-close").onclick = closeAuth;
+$("auth-modal").addEventListener("click", (e) => { if (e.target === $("auth-modal")) closeAuth(); });
+$("plans-close").onclick = closePlans;
+$("plans-modal").addEventListener("click", (e) => { if (e.target === $("plans-modal")) closePlans(); });
+$("account-close").onclick = closeAccount;
+$("account-modal").addEventListener("click", (e) => { if (e.target === $("account-modal")) closeAccount(); });
 $("search").addEventListener("keydown", (e) => { if (e.key === "Enter") doSearch(); });
 $("whatif-btn").onclick = askWhatIf;
 $("whatif-input").addEventListener("keydown", (e) => { if (e.key === "Enter") askWhatIf(); });

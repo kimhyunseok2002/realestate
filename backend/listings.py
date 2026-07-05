@@ -98,7 +98,7 @@ def expected_sales_manwon(gu: str, industry: str, area: int, floor_factor: float
     d = data.DISTRICTS[gu]
     resident = 0.6 * d["resident_support"] + 0.4 * d["daytime_pop"]
     demand = 0.5 * d["foot_traffic"] + 0.25 * d["income"] + 0.25 * resident
-    per_pyeong = 12.0 + demand / 100.0 * 60.0        # 12~72 만원/평·월
+    per_pyeong = 18.0 + demand / 100.0 * 82.0        # 18~100 만원/평·월
     mult = SALES_MULT.get(industry, 1.0)
     return per_pyeong * area * floor_factor * mult
 

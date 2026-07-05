@@ -70,10 +70,13 @@
           <h1 class="wordmark-en">SurviMap</h1>
           <div class="sub">입지·업종별 상권 생존 예측</div>
         </div>
-        <button class="about-btn" id="about-btn" type="button" aria-haspopup="dialog" aria-expanded="false">
-          <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg>
-          <span>소개</span>
-        </button>
+        <div class="head-actions">
+          <button class="about-btn account-btn" id="account-btn" type="button" aria-haspopup="dialog"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span>로그인</span></button>
+          <button class="about-btn" id="about-btn" type="button" aria-haspopup="dialog" aria-expanded="false">
+            <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg>
+            <span>소개</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -185,7 +188,7 @@
               <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5L5 10l5.1-1.9L12 3Z"/></svg></span> AI 리포트 <span id="report-src" style="margin-left:auto"></span></div>
               <div class="report-box" id="report-box"><span class="loading"><span class="spinner"></span> 리포트 생성 중…</span></div>
             </div>
-            <div class="block-sec">
+            <div class="block-sec" id="whatif-block">
               <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M8 21H3v-5"/><path d="M21 3l-7.5 7.5"/><path d="M3 21l7.5-7.5"/></svg></span> what-if — 바꿔보면?</div>
               <div class="sim-box">
                 <div class="sim-title">변수를 조절하면 3년 생존율이 실시간으로 바뀝니다</div>
@@ -343,6 +346,81 @@
         <button class="btn pay-run" id="pay-run" type="button">₩9,900 결제하기</button>
         <div class="pay-note">데모 결제입니다 — 실제로 청구되지 않습니다. 아무 값이나 입력해도 됩니다.</div>
       </div>
+    </div>
+  </div>
+
+  <!-- 회원가입 / 로그인 모달 -->
+  <div class="modal-overlay hidden" id="auth-modal">
+    <div class="modal modal-sm">
+      <button class="modal-close" id="auth-close" type="button" aria-label="닫기"><svg class="icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <div class="modal-hero">
+        <div class="logo lg" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></div>
+        <div>
+          <div class="modal-brand budget-brand">SurviMap 계정</div>
+          <div class="modal-tag">개인·법인 유형에 따라 기능과 요금이 달라집니다</div>
+        </div>
+      </div>
+      <div class="modal-scroll">
+        <div class="auth-tabs" id="auth-tabs">
+          <button class="atab active" data-tab="signup" type="button">회원가입</button>
+          <button class="atab" data-tab="login" type="button">로그인</button>
+        </div>
+        <div id="signup-pane">
+          <div class="seg" id="su-type">
+            <button class="seg-b active" data-t="personal" type="button">개인 · B2C</button>
+            <button class="seg-b" data-t="business" type="button">법인 · B2B</button>
+          </div>
+          <div class="af"><label>이름</label><input id="su-name" placeholder="홍길동"></div>
+          <div class="af"><label>이메일</label><input id="su-email" placeholder="you@email.com"></div>
+          <div class="af"><label>비밀번호</label><input id="su-pw" type="password" placeholder="••••••••"></div>
+          <div id="su-biz" class="hidden">
+            <div class="af"><label>회사명</label><input id="su-company" placeholder="(주)상권컴퍼니"></div>
+            <div class="af"><label>사업자등록번호</label><input id="su-bizno" placeholder="123-45-67890"></div>
+          </div>
+          <div class="af-label">플랜 선택</div>
+          <div class="su-plans" id="su-plans"></div>
+          <button class="btn su-run" id="su-run" type="button">가입하고 시작하기</button>
+          <div class="auth-alt">이미 회원이신가요? <button class="linkbtn" id="go-login" type="button">로그인</button></div>
+        </div>
+        <div id="login-pane" class="hidden">
+          <div class="af"><label>이메일</label><input id="li-email" placeholder="you@email.com"></div>
+          <div class="af"><label>비밀번호</label><input id="li-pw" type="password" placeholder="••••••••"></div>
+          <div class="err hidden" id="li-err"></div>
+          <button class="btn" id="li-run" type="button">로그인</button>
+          <div class="auth-alt">계정이 없나요? <button class="linkbtn" id="go-signup" type="button">회원가입</button></div>
+        </div>
+        <div class="pay-note">데모 계정입니다 — 실제 인증 없이 브라우저에 저장됩니다.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 요금제 모달 -->
+  <div class="modal-overlay hidden" id="plans-modal">
+    <div class="modal">
+      <button class="modal-close" id="plans-close" type="button" aria-label="닫기"><svg class="icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <div class="modal-hero">
+        <div class="logo lg" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0l-7-7A2 2 0 0 1 3 12.2V5a2 2 0 0 1 2-2h7.2a2 2 0 0 1 1.4.6l7 7a2 2 0 0 1 0 2.8Z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg></div>
+        <div>
+          <div class="modal-brand budget-brand">요금제</div>
+          <div class="modal-tag">개인(B2C) · 법인(B2B) 유형별 플랜</div>
+        </div>
+      </div>
+      <div class="modal-scroll"><div class="plans-body" id="plans-body"></div></div>
+    </div>
+  </div>
+
+  <!-- 내 계정 모달 -->
+  <div class="modal-overlay hidden" id="account-modal">
+    <div class="modal modal-sm">
+      <button class="modal-close" id="account-close" type="button" aria-label="닫기"><svg class="icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <div class="modal-hero">
+        <div class="logo lg" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></div>
+        <div>
+          <div class="modal-brand budget-brand">내 계정</div>
+          <div class="modal-tag">플랜과 이용 정보</div>
+        </div>
+      </div>
+      <div class="modal-scroll"><div id="account-body"></div></div>
     </div>
   </div>
 

@@ -30,7 +30,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend import data, geocode, listings, llm, survival
+from backend import data, geocode, listings, llm, report, survival
 from backend.schemas import PredictRequest, ReportRequest, WhatIfRequest
 
 app = FastAPI(title="상권 생존 예측 서비스", version="1.0")
@@ -222,6 +222,26 @@ def api_report(req: ReportRequest):
         raise HTTPException(400, f"알 수 없는 업종: {req.industry}")
     pred = survival.predict(req.gu, req.industry, req.lat, req.lon)
     return llm.generate_report(pred)
+
+
+@app.get("/api/deep_report")
+def api_deep_report(gu: str = Query(...), industry: str = Query(...),
+                    lat: float = Query(..., ge=36.8, le=38.4),
+                    lon: float = Query(..., ge=126.2, le=127.9),
+                    area: int = Query(15, ge=4, le=200),
+                    rent: int = Query(0, ge=0), deposit: int = Query(-1),
+                    premium: int = Query(-1), maint: int = Query(0),
+                    capital: int = Query(0, ge=0), target: int = Query(0, ge=0)):
+    """유료 심층 리포트 — 손익·판정·대안·실패시나리오·임대료·추세·코호트."""
+    try:
+        return report.deep_report(
+            gu, industry, lat, lon, area,
+            rent=(rent or None), deposit=(None if deposit < 0 else deposit),
+            premium=(None if premium < 0 else premium), maint=(maint or None),
+            capital=capital, target=target,
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @app.post("/api/whatif")
