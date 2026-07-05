@@ -1,0 +1,13 @@
+# 살아남을지도 / SurviMap 의존성
+#
+# 로컬: fastapi/uvicorn 은 backend/vendor/ 에 --target 설치되어 있어 별도 설치 없이
+#       `python3 run.py` 로 실행된다. (numpy 는 시스템/유저 설치 가정)
+# 배포(Vercel 등): 아래 목록으로 설치된다. backend/vendor/ 는 .gitignore 되므로
+#       클론/배포 환경에서는 이 requirements.txt 가 유일한 의존성 소스다.
+#
+#   pip3 install -r requirements.txt
+
+fastapi>=0.110
+uvicorn>=0.27
+numpy>=1.26
+pydantic>=2.5

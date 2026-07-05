@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>살아남을지도 · 입지·업종별 상권 생존 예측</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <!-- 전체화면 지도 (호갱노노식) -->
+  <div id="map"></div>
+
+  <!-- 지도 상단 글래스 툴바: 지역 + 업종 -->
+  <div class="map-toolbar" id="map-toolbar">
+    <div class="mt-row">
+      <span class="mt-label">지역</span>
+      <div class="mt-scope" id="region-scope" role="group" aria-label="지역 범위">
+        <button type="button" class="scope-btn active" data-scope="전체">전체</button>
+        <button type="button" class="scope-btn" data-scope="서울">서울</button>
+        <button type="button" class="scope-btn" data-scope="경기">경기</button>
+      </div>
+      <div class="mt-chips" id="region-chips" role="group" aria-label="지역 선택"></div>
+    </div>
+    <div class="mt-row">
+      <span class="mt-label">업종</span>
+      <div class="mt-chips" id="map-industry-chips" role="group" aria-label="업종 선택"></div>
+      <button type="button" class="listing-toggle" id="listing-toggle" aria-pressed="false">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>
+        <span>매물</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- 우하단 범례 -->
+  <div class="map-legend" id="map-legend">
+    <div class="ml-title" id="ml-title">3년 생존율</div>
+    <div class="ml-scale">
+      <span class="ml-item"><i style="background:var(--critical)"></i>~28%</span>
+      <span class="ml-item"><i style="background:var(--serious)"></i>28–40</span>
+      <span class="ml-item"><i style="background:var(--warning)"></i>40–55</span>
+      <span class="ml-item"><i style="background:var(--good)"></i>55%+</span>
+    </div>
+  </div>
+
+  <!-- 좌측 플로팅 패널 -->
+  <aside class="panel" id="panel">
+    <div class="panel-head">
+      <div class="brand">
+        <div class="brand-txt">
+          <h1 class="wordmark-en">SurviMap</h1>
+          <div class="sub">입지·업종별 상권 생존 예측</div>
+        </div>
+        <button class="about-btn" id="about-btn" type="button" aria-haspopup="dialog" aria-expanded="false">
+          <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg>
+          <span>소개</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="panel-body" id="panel-body">
+      <!-- 검색 -->
+      <div class="input-wrap search-full">
+        <span class="in-ico"><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span>
+        <input type="text" id="search" placeholder="주소·지하철역·상호 검색 (강남역, 홍대입구 …)" autocomplete="off" />
+      </div>
+      <div class="geo-results" id="geo-results"></div>
+
+      <!-- 선택 위치 -->
+      <div class="loc-card hidden" id="loc-card">
+        <div class="loc-gu" id="loc-gu">
+          <span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></span>
+          <span id="loc-gu-text">—</span>
+        </div>
+        <div class="loc-addr" id="loc-addr">—</div>
+        <div class="loc-meta" id="loc-meta"></div>
+        <div class="snap-note hidden" id="snap-note"></div>
+      </div>
+      <div class="err hidden" id="input-err"></div>
+
+      <!-- 결과 -->
+      <div class="placeholder" id="placeholder">
+        <div class="ph-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 20 3 17V4l6 3 6-3 6 3v13l-6-3-6 3Z"/><path d="M9 7v13M15 4v13"/></svg>
+        </div>
+        <b>업종을 고르고, 지도에서 위치를 선택하세요.</b>
+        <div class="ph-sub">지도 위 <b>자치구별 생존율 버블</b>을 누르거나<br/>원하는 지점을 클릭하면 분석이 시작됩니다.</div>
+      </div>
+
+      <div id="result-body" class="hidden">
+        <div class="listing-card hidden" id="listing-card"></div>
+        <div class="divider"></div>
+        <h2 class="result-title" id="result-title"></h2>
+
+        <div class="tiles" id="tiles"></div>
+        <div class="summary-row" id="summary"></div>
+
+        <div class="block-sec">
+          <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m7 14 4-5 3 3 5-7"/></svg></span> 생존곡선 · Kaplan-Meier & Cox</div>
+          <div class="chart-card">
+            <div class="chart-wrap"><canvas id="survival-chart"></canvas></div>
+            <div class="legend" id="chart-legend"></div>
+          </div>
+        </div>
+
+        <div class="block-sec">
+          <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M5 8h14"/><path d="M8 13h8"/><path d="M10 18h4"/></svg></span> 위험 분해 — 3년 생존율 기여 (%p)</div>
+          <div class="risk-list" id="risk-list"></div>
+          <div class="risk-scale"><span>← 깎는 요인</span><span>받쳐주는 요인 →</span></div>
+          <div class="risk-note" id="risk-note"></div>
+        </div>
+
+        <div class="block-sec">
+          <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="17" y="4" width="4" height="16" rx="1"/></svg></span> 유사 상권 비교</div>
+          <div class="sim-list" id="sim-list"></div>
+          <div class="avg-note" id="sim-note"></div>
+        </div>
+
+        <div class="block-sec">
+          <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M4 6h16"/><circle cx="9" cy="6" r="2"/><path d="M4 12h16"/><circle cx="15" cy="12" r="2"/><path d="M4 18h16"/><circle cx="7" cy="18" r="2"/></svg></span> 이 지점의 상권 변수</div>
+          <div class="feat-grid" id="feat-grid"></div>
+        </div>
+
+        <div class="block-sec">
+          <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5L5 10l5.1-1.9L12 3Z"/></svg></span> AI 리포트 <span id="report-src" style="margin-left:auto"></span></div>
+          <div class="report-box" id="report-box"><span class="loading"><span class="spinner"></span> 리포트 생성 중…</span></div>
+        </div>
+
+        <div class="block-sec">
+          <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M8 21H3v-5"/><path d="M21 3l-7.5 7.5"/><path d="M3 21l7.5-7.5"/></svg></span> what-if — 바꿔보면?</div>
+          <div class="whatif-row">
+            <div class="input-wrap">
+              <span class="in-ico"><svg class="icon" viewBox="0 0 24 24"><path d="M8 9h8"/><path d="M8 13h5"/><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+              <input type="text" id="whatif-input" placeholder="카페 말고 베이커리면?" />
+            </div>
+            <button class="btn sm" id="whatif-btn">질문</button>
+          </div>
+          <div class="whatif-suggest" id="whatif-suggest"></div>
+          <div class="whatif-answer hidden" id="whatif-answer"></div>
+        </div>
+
+        <div class="prov" id="prov"></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 서비스 소개 모달 (프로젝트 정리) -->
+  <div class="modal-overlay hidden" id="about-modal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="about-hd">
+      <button class="modal-close" id="about-close" type="button" aria-label="닫기">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+
+      <div class="modal-hero">
+        <div>
+          <div class="modal-brand" id="about-hd">SurviMap</div>
+          <div class="modal-tag">살아남을지도 · 입지·업종별 상권 생존 예측 서비스</div>
+        </div>
+      </div>
+
+      <div class="modal-scroll">
+        <p class="about-lead">“어디서 어떤 가게를 열면 몇 년을 버틸 수 있는지 — 위치와 업종만 입력하면 <b>생존 확률</b>을 예측해 주는 상권 분석 서비스.”</p>
+
+        <div class="about-sec">
+          <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M3 12h4l2.5 6L14 6l2 6h5"/></svg></span> 어떻게 예측하나 · ML 코어 + LLM 인터페이스</div>
+          <p class="about-p">예측 자체는 <b>생존분석 ML 엔진</b>(Cox 비례위험 · Weibull 기저생존 · Kaplan-Meier 실측 코호트 · 위험 분해)이 담당합니다. <b>LLM(Claude)</b>은 예측 엔진이 아니라, 그 숫자를 소상공인이 읽는 자연어로 <b>번역·설명하는 레이어</b>입니다 — 판단 대체 ✗ / 검증 지원 ✓.</p>
+        </div>
+
+        <div class="about-sec">
+          <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></span> 어떤 데이터를 쓰나 — 필요 데이터 → 출처</div>
+          <div class="about-rows">
+            <div class="ar"><div class="ar-k">상가 · 점포</div><div class="ar-v">업종 · 좌표 · 개폐업일 · 회전율 <span class="ar-src">LOCALDATA · 공공데이터포털 상가정보 API</span></div></div>
+            <div class="ar"><div class="ar-k">상권 매출 · 유동인구</div><div class="ar-v">상권 단위 매출 추정 · 시간대별 유동인구 <span class="ar-src">소상공인 상권정보시스템 · 서울 열린데이터광장(우리마을가게 · 생활인구)</span></div></div>
+            <div class="ar"><div class="ar-k">배후 인구 · 소득 · 소비</div><div class="ar-v">인구 · 가구 · 사업체 · 소득 <span class="ar-src">통계청 SGIS</span></div></div>
+            <div class="ar"><div class="ar-k">임대료 · 공실률</div><div class="ar-v">상업용 임대료 · 공실률 <span class="ar-src">국토부 실거래가 · 한국부동산원</span></div></div>
+            <div class="ar"><div class="ar-k">경쟁 밀집도</div><div class="ar-v">반경 내 동종 점포 밀도 <span class="ar-src">상가정보 API</span></div></div>
+            <div class="ar"><div class="ar-k">교통 · 미시입지 · 앵커시설</div><div class="ar-v">지하철·버스·주차 / 1층·코너·가시성 / 마트·대학·병원·관공서 <span class="ar-src">지도 · 공간 데이터</span></div></div>
+            <div class="ar"><div class="ar-k">미래 수요</div><div class="ar-v">신규 아파트·오피스 입주 · 재개발 · 지하철 신설 계획 <span class="ar-src">도시계획 데이터</span></div></div>
+            <div class="ar"><div class="ar-k">살아있는 수요 신호</div><div class="ar-v">배달앱 주문 밀도 · 네이버·카카오 플레이스 리뷰·평점 · 데이터랩 검색량 · SNS <span class="ar-src">플레이스 · 데이터랩 · 트렌드</span></div></div>
+            <div class="ar"><div class="ar-k">거시 환경</div><div class="ar-v">금리 · 임대료·인건비·최저임금 추이 · 외부 충격(감염병 등) 업종별 반응 <span class="ar-src">거시 지표</span></div></div>
+            <div class="ar"><div class="ar-k">점포 운영 <span class="ar-tag">고가치 · B2B</span></div><div class="ar-v">창업자 경험 · 자기자본 비율 · 권리금·보증금 · POS 실매출 <span class="ar-src">MVP 이후 통신·카드사 제휴로 확보</span></div></div>
+          </div>
+          <div class="about-note">정형(점포 속성 · 통계) · 시계열(월별 유동인구 · 분기 매출) · 공간(좌표 · 행정동 경계)을 결합. 규모 — LOCALDATA 인허가 이력 누적 <b>수천만 건</b>, 상가정보 <b>200만+ 개</b>, 생활인구는 행정동·집계구 · 시간대 단위.</div>
+        </div>
+
+        <div class="about-sec">
+          <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m7 14 4-5 3 3 5-7"/></svg></span> 얻는 인사이트</div>
+          <ul class="about-list">
+            <li>어느 <b>위치 × 업종</b>이 가장 오래 살아남는가</li>
+            <li>위험 신호(공실 증가 · 유동인구 감소)는 무엇인가</li>
+            <li>임대료 대비 기대 매출이 적정한가</li>
+          </ul>
+        </div>
+
+        <div class="about-sec">
+          <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><circle cx="8.5" cy="8.5" r="5"/><path d="M15 4.5a5 5 0 0 1 0 9.8"/><path d="M13.5 20a5 5 0 0 0 4-8"/></svg></span> 비즈니스 모델 — 층위별 수익화</div>
+          <div class="biz-grid">
+            <div class="biz"><div class="biz-k">B2C · 건당 결제</div><div class="biz-v">예비 창업자가 위치+업종 입력 → <b>생존 확률 리포트</b> 판매</div></div>
+            <div class="biz"><div class="biz-k">B2B · 월 구독 (SaaS)</div><div class="biz-v">부동산 중개 · 프랜차이즈 본사 · 창업 컨설턴트 대상</div></div>
+            <div class="biz"><div class="biz-k">B2B · API 라이선스</div><div class="biz-v">은행·보험·VC의 소상공인 대출/투자 심사 <b class="hi">(마진 최대)</b></div></div>
+            <div class="biz"><div class="biz-k">부가 서비스</div><div class="biz-v">점포 매물 추천 · 임대료 협상 리포트 → 객단가 상승</div></div>
+          </div>
+        </div>
+
+        <div class="about-team">
+          <span class="team-k">TEAM</span>
+          <span class="team-v">김현석 · 최지훈</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
