@@ -743,6 +743,14 @@ $("about-modal").addEventListener("keydown", (e) => {   // Tab 포커스 트랩
 });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeAbout(); closeBudget(); closePay(); } });
 
+/* ---------------- 분석창 접기/펼치기 ---------------- */
+function togglePanel() {
+  const hidden = document.body.classList.toggle("panel-hidden");
+  const btn = $("panel-toggle");
+  btn.setAttribute("aria-expanded", hidden ? "false" : "true");
+  btn.title = hidden ? "분석창 펼치기" : "분석창 접기";
+}
+
 /* ---------------- 탭 메뉴 ---------------- */
 function showTab(name) {
   state.tab = name;
@@ -963,6 +971,7 @@ function resetSim() {
 }
 
 /* ---------------- events ---------------- */
+$("panel-toggle").onclick = togglePanel;
 document.querySelectorAll("#region-scope .scope-btn").forEach((b) => { b.onclick = () => setScope(b.dataset.scope); });
 document.querySelectorAll("#ml-horizon .mh").forEach((b) => { b.onclick = () => setHorizon(Number(b.dataset.h)); });
 $("listing-toggle").onclick = toggleListings;
