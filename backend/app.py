@@ -150,6 +150,35 @@ def api_industry_fit(gu: str = Query(...),
 
 
 # ---------------------------------------------------------------------------
+# what-if 시뮬레이터 (변수 조정 → 생존율 재계산)
+# ---------------------------------------------------------------------------
+@app.get("/api/whatif_sim")
+def api_whatif_sim(gu: str = Query(...), industry: str = Query(...),
+                   lat: float = Query(..., ge=36.8, le=38.4),
+                   lon: float = Query(..., ge=126.2, le=127.9),
+                   rent: float = Query(0.0, ge=-0.6, le=0.6),
+                   foot: float = Query(0.0, ge=-0.6, le=0.6),
+                   comp: float = Query(0.0, ge=-0.6, le=0.6)):
+    if gu not in data.DISTRICTS or industry not in data.INDUSTRIES:
+        raise HTTPException(400, "알 수 없는 지역/업종")
+    adj = {"rent": rent, "foot_traffic": foot, "competition": comp}
+    return survival.simulate(gu, industry, lat, lon, adj)
+
+
+# ---------------------------------------------------------------------------
+# 실제 점포 (OSM)
+# ---------------------------------------------------------------------------
+@app.get("/api/stores")
+def api_stores(lat: float = Query(..., ge=36.8, le=38.4),
+               lon: float = Query(..., ge=126.2, le=127.9),
+               industry: str = Query(...), radius: int = Query(700, ge=100, le=2000)):
+    if industry not in data.INDUSTRIES:
+        raise HTTPException(400, f"알 수 없는 업종: {industry}")
+    return {"industry": industry, "radius": radius,
+            "stores": geocode.nearby_stores(lat, lon, industry, radius)}
+
+
+# ---------------------------------------------------------------------------
 # 예측
 # ---------------------------------------------------------------------------
 def _resolve_gu(gu: str | None, lat: float, lon: float, address: str) -> tuple[str, dict]:

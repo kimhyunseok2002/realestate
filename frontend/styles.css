@@ -267,6 +267,46 @@ svg.icon { width: 1em; height: 1em; display: inline-block; vertical-align: -0.14
   box-shadow: 0 8px 24px rgba(25,31,40,.28); opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+/* ---------- 범례 기간 토글 (1/3/5년) ---------- */
+.ml-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.map-legend .ml-head .ml-title { margin-bottom: 0; }
+.ml-horizon { display: flex; gap: 1px; background: rgba(25,31,40,.06); border-radius: 999px; padding: 2px; flex: none; }
+.mh { font-family: inherit; font-size: 10.5px; font-weight: 700; color: var(--ink-2); background: transparent; border: none;
+  border-radius: 999px; padding: 3px 9px; cursor: pointer; transition: color .12s, background .12s; }
+.mh:hover { color: var(--brand); }
+.mh.active { background: #fff; color: var(--brand); box-shadow: 0 1px 2px rgba(25,31,40,.16); }
+
+/* ---------- 실제 점포 마커 (OSM) ---------- */
+.store-dot { width: 10px; height: 10px; border-radius: 50%; background: #7c3aed; border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(25,31,40,.4); }
+
+/* ---------- what-if 시뮬레이터 ---------- */
+.listing-toggle.loading-b { opacity: .65; }
+.sim-box { background: var(--surface-2); border: 1px solid var(--border-2); border-radius: 14px; padding: 13px 14px; margin-bottom: 12px; }
+.sim-title { font-size: 12px; font-weight: 700; color: var(--ink-2); margin-bottom: 12px; }
+.sim-lever { margin-bottom: 11px; }
+.sim-lever label { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; font-weight: 600;
+  color: var(--ink-2); margin-bottom: 5px; }
+.sim-lever label b { font-family: var(--font-mono); font-size: 12.5px; color: var(--brand); }
+.sim-lever input[type=range] { width: 100%; -webkit-appearance: none; appearance: none; height: 5px; border-radius: 999px;
+  background: linear-gradient(90deg,#dbe3ec,#c3d0dd); outline: none; cursor: pointer; }
+.sim-lever input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px;
+  border-radius: 50%; background: #fff; border: 2px solid var(--brand); box-shadow: 0 1px 4px rgba(25,31,40,.25); cursor: pointer; }
+.sim-lever input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #fff;
+  border: 2px solid var(--brand); box-shadow: 0 1px 4px rgba(25,31,40,.25); cursor: pointer; }
+.sim-out { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 7px; }
+.so-hint { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.so-row { display: flex; align-items: center; gap: 8px; }
+.so-k { flex: none; width: 30px; font-weight: 700; color: var(--ink-2); font-size: 12px; }
+.so-base { font-family: var(--font-mono); color: var(--muted); font-size: 13px; }
+.so-arr { color: var(--muted); }
+.so-adj { font-family: var(--font-mono); font-weight: 800; font-size: 15.5px; font-variant-numeric: tabular-nums; }
+.so-delta { margin-left: auto; font-family: var(--font-mono); font-weight: 700; font-size: 12.5px; }
+.so-delta.up { color: var(--good); }
+.so-delta.down { color: var(--critical); }
+.whatif-sep { font-size: 11.5px; font-weight: 600; color: var(--muted); text-align: center; margin: 6px 0 10px;
+  position: relative; }
+
 /* ---------- 인쇄(PDF 저장) ---------- */
 @media print {
   #map, .map-toolbar, .map-legend, .leaflet-control-container, .result-actions, .tabbar,

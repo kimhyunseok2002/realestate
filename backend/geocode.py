@@ -123,6 +123,48 @@ def geocode(query: str, limit: int = 5) -> list[dict]:
     return out
 
 
+# ---------------------------------------------------------------------------
+# 실제 점포(OSM Overpass) — 업종별 실제 가게 위치
+# ---------------------------------------------------------------------------
+OVERPASS = "https://overpass-api.de/api/interpreter"
+
+OSM_STORE_TAGS = {
+    "카페": ["node[amenity=cafe]"],
+    "디저트카페": ["node[amenity=cafe]", "node[shop=confectionery]", "node[shop=pastry]"],
+    "한식음식점": ["node[amenity=restaurant]"],
+    "치킨전문점": ["node[amenity=fast_food]", "node[amenity=restaurant]"],
+    "편의점": ["node[shop=convenience]"],
+    "베이커리": ["node[shop=bakery]"],
+    "호프_주점": ["node[amenity=pub]", "node[amenity=bar]"],
+    "분식": ["node[amenity=fast_food]"],
+    "미용실": ["node[shop=hairdresser]", "node[shop=beauty]"],
+    "패스트푸드": ["node[amenity=fast_food]"],
+}
+
+
+def nearby_stores(lat: float, lon: float, industry: str, radius: int = 700, limit: int = 60) -> list[dict]:
+    """좌표 반경 내 해당 업종의 '실제' 점포(OpenStreetMap) 위치."""
+    tags = OSM_STORE_TAGS.get(industry, ["node[amenity=cafe]"])
+    filt = "".join(f"{t}(around:{radius},{lat},{lon});" for t in tags)
+    query = f"[out:json][timeout:20];({filt});out center {limit};"
+    try:
+        body = urllib.parse.urlencode({"data": query}).encode()
+        req = urllib.request.Request(OVERPASS, data=body, headers={"User-Agent": UA})
+        with urllib.request.urlopen(req, timeout=TIMEOUT + 14) as resp:
+            j = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return []
+    out = []
+    for el in j.get("elements", []):
+        elat = el.get("lat") or (el.get("center") or {}).get("lat")
+        elon = el.get("lon") or (el.get("center") or {}).get("lon")
+        if elat is None or elon is None:
+            continue
+        name = (el.get("tags") or {}).get("name") or "이름 미상"
+        out.append({"name": name, "lat": elat, "lon": elon})
+    return out
+
+
 def reverse(lat: float, lon: float) -> dict:
     """좌표 → 주소 문자열 (+ 지원 자치구 매핑)."""
     address_text = ""

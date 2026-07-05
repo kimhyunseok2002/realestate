@@ -37,12 +37,23 @@
         <svg class="icon" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h13v4"/><path d="M3 7v10a2 2 0 0 0 2 2h16V9H5"/><path d="M16 13h.01"/></svg>
         <span>예산추천</span>
       </button>
+      <button type="button" class="listing-toggle" id="stores-toggle" aria-pressed="false" title="반경 700m 실제 점포(OpenStreetMap)">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M4 9l1-4h14l1 4"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M4 9h16"/><path d="M9 20v-6h6v6"/></svg>
+        <span>실제 점포</span>
+      </button>
     </div>
   </div>
 
   <!-- 우하단 범례 -->
   <div class="map-legend" id="map-legend">
-    <div class="ml-title" id="ml-title">3년 생존율</div>
+    <div class="ml-head">
+      <div class="ml-title" id="ml-title">카페 · 생존율</div>
+      <div class="ml-horizon" id="ml-horizon" role="group" aria-label="예측 기간">
+        <button type="button" class="mh" data-h="1">1년</button>
+        <button type="button" class="mh active" data-h="3">3년</button>
+        <button type="button" class="mh" data-h="5">5년</button>
+      </div>
+    </div>
     <div class="ml-scale">
       <span class="ml-item"><i style="background:var(--critical)"></i>~28%</span>
       <span class="ml-item"><i style="background:var(--serious)"></i>28–40</span>
@@ -172,6 +183,14 @@
             </div>
             <div class="block-sec">
               <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M8 21H3v-5"/><path d="M21 3l-7.5 7.5"/><path d="M3 21l7.5-7.5"/></svg></span> what-if — 바꿔보면?</div>
+              <div class="sim-box">
+                <div class="sim-title">변수를 조절하면 3년 생존율이 실시간으로 바뀝니다</div>
+                <div class="sim-lever"><label>임대료 <b id="sim-rent-v">0%</b></label><input type="range" id="sim-rent" min="-30" max="30" value="0" step="5"></div>
+                <div class="sim-lever"><label>유동인구 <b id="sim-foot-v">0%</b></label><input type="range" id="sim-foot" min="-30" max="30" value="0" step="5"></div>
+                <div class="sim-lever"><label>경쟁 밀도 <b id="sim-comp-v">0%</b></label><input type="range" id="sim-comp" min="-30" max="30" value="0" step="5"></div>
+                <div class="sim-out" id="sim-out"></div>
+              </div>
+              <div class="whatif-sep">또는 자유롭게 질문</div>
               <div class="whatif-row">
                 <div class="input-wrap">
                   <span class="in-ico"><svg class="icon" viewBox="0 0 24 24"><path d="M8 9h8"/><path d="M8 13h5"/><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>

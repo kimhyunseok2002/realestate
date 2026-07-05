@@ -259,6 +259,45 @@ def overview(industry: str) -> list[dict]:
     return out
 
 
+def simulate(gu: str, industry: str, lat: float, lon: float, adj: dict) -> dict:
+    """what-if 시뮬레이션: 임대료·유동인구·경쟁 밀도를 비율로 조정해 생존율 재계산.
+    adj = {"rent": -0.15, "foot_traffic": 0.2, "competition": -0.25} (fractional)."""
+    if gu not in data.DISTRICTS:
+        raise ValueError(f"알 수 없는 지역: {gu}")
+    if industry not in data.INDUSTRIES:
+        raise ValueError(f"알 수 없는 업종: {industry}")
+    ind = data.INDUSTRIES[industry]
+    comps, lp0, _ = _feature_context(gu, industry, lat, lon)
+    lp = lp0
+    for key, frac in adj.items():
+        if not frac or key not in comps:
+            continue
+        raw, z, beta = comps[key]
+        if key == "competition":
+            new_z = z + float(frac) * 1.2                 # 경쟁: z 절대 이동(방향 안정)
+        else:
+            mean, std = _STATS[key]
+            new_z = (raw * (1.0 + float(frac)) - mean) / std
+        lp += (new_z - z) * beta
+    lp = float(np.clip(lp, -1.25, 1.25))
+    hr = math.exp(lp)
+    hr0 = math.exp(float(np.clip(lp0, -1.25, 1.25)))
+    scale, shape = ind["scale"], ind["shape"]
+
+    def surv(h):
+        return round(float(_weibull_survival(h, scale, shape, hr)) * 100, 1)
+
+    def base(h):
+        return round(float(_weibull_survival(h, scale, shape, hr0)) * 100, 1)
+
+    s36 = float(_weibull_survival(36, scale, shape, hr))
+    return {
+        "base": {"y1": base(12), "y3": base(36), "y5": base(60)},
+        "adjusted": {"y1": surv(12), "y3": surv(36), "y5": surv(60)},
+        "hazard_ratio": round(hr, 3), "band": _band(s36),
+    }
+
+
 def industry_fit(gu: str, lat: float, lon: float) -> list[dict]:
     """이 지점에서 10개 업종의 3년 생존율을 계산해 내림차순 정렬 (역방향 추천)."""
     if gu not in data.DISTRICTS:

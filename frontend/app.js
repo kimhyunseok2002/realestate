@@ -42,6 +42,8 @@ const state = {
   scope: "전체", regionOf: {}, ovLabel: "",
   listingsOn: false, listingLayer: null, listingMarkers: {}, listingsGu: null,
   tab: "summary", fitFor: null, _toastT: null,
+  horizon: 3, _simT: null,
+  storesOn: false, storesLayer: null, storesMarkers: [], storesKey: null,
 };
 
 const COLORS = {
@@ -165,8 +167,7 @@ async function selectIndustry(key) {
   state.industry = key;
   document.querySelectorAll("#map-industry-chips .mchip").forEach((c) =>
     c.classList.toggle("active", c.dataset.key === key));
-  const label = (state.meta.industries.find((i) => i.key === key) || {}).label || key;
-  $("ml-title").textContent = `${label} · 3년 생존율`;
+  updateLegendTitle();
   await loadOverview(key);
   if (state.loc) predict();                     // 업종 바꾸면 현재 위치 재분석
 }
@@ -189,6 +190,7 @@ function initMap() {
   map.on("click", (e) => setLocation(e.latlng.lat, e.latlng.lng, { reveal: true }));
   state.bubbleLayer = L.layerGroup().addTo(map);
   state.listingLayer = L.layerGroup().addTo(map);
+  state.storesLayer = L.layerGroup().addTo(map);
   state.map = map;
 }
 
@@ -206,12 +208,14 @@ function renderBubbles(list, label) {
   state.ovLabel = label;
   list.forEach((d) => {
     if (state.scope !== "전체" && state.regionOf[d.gu] !== state.scope) return;
-    const html = `<div class="bubble ${d.band}">
-      <div class="tag"><span class="gu">${shortGu(d.gu)}</span>${d.y3}%</div>
+    const val = d["y" + state.horizon];
+    const band = bandFor(val);
+    const html = `<div class="bubble ${band}">
+      <div class="tag"><span class="gu">${shortGu(d.gu)}</span>${val}%</div>
       <div class="tail"></div></div>`;
     const icon = L.divIcon({ html, className: "bubble-wrap", iconSize: [1, 1], iconAnchor: [0, 0] });
     const m = L.marker([d.lat, d.lon], { icon, riseOnHover: true })
-      .bindTooltip(`${d.gu} · ${label} 3년 ${d.y3}%`, { direction: "top", offset: [0, -14] })
+      .bindTooltip(`${d.gu} · ${label} ${state.horizon}년 ${val}%`, { direction: "top", offset: [0, -14] })
       .on("click", () => selectGu(d.gu));
     m.addTo(state.bubbleLayer);
     state.bubbleMarkers[d.gu] = m;
@@ -224,6 +228,16 @@ function highlightBubble(gu) {
     const el = m._icon && m._icon.querySelector(".bubble");
     if (el) el.classList.toggle("selected", name === gu);
   });
+}
+function updateLegendTitle() {
+  const label = (state.meta.industries.find((i) => i.key === state.industry) || {}).label || state.industry || "";
+  $("ml-title").textContent = `${label} · ${state.horizon}년 생존율`;
+}
+function setHorizon(h) {
+  state.horizon = h;
+  document.querySelectorAll("#ml-horizon .mh").forEach((b) => b.classList.toggle("active", Number(b.dataset.h) === h));
+  updateLegendTitle();
+  if (state.overview) renderBubbles(state.overview, state.ovLabel);
 }
 
 function placePin(lat, lon) {
@@ -300,6 +314,8 @@ async function doSearch() {
       el.onclick = () => { $("search").value = r.name; box.innerHTML = ""; setLocation(r.lat, r.lon, { fly: true, zoom: 15, reveal: true }); };
       box.appendChild(el);
     });
+    const f = res.results[0];                 // 검색 즉시 첫 결과로 지도 이동
+    setLocation(f.lat, f.lon, { fly: true, zoom: 15, reveal: true });
   } catch (e) { box.innerHTML = `<div class="err">${esc(e.message)}</div>`; }
 }
 
@@ -320,6 +336,7 @@ async function predict() {
     highlightBubble(pred.input.gu);
     highlightRegionChip(pred.input.gu);
     if (state.listingsOn && state.listingsGu !== pred.input.gu) loadListings();
+    if (state.storesOn) loadStores();
     loadReport(seq);
     resetWhatIf();
   } catch (e) {
@@ -520,6 +537,7 @@ async function openListing(lid) {
     renderListingCard(l, r.analysis);            // 그 위에 매물 분석 카드 표시
     highlightBubble(l.gu); highlightRegionChip(l.gu);
     if (state.listingsOn) loadListings();
+    if (state.storesOn) loadStores();
     loadReport(seq);
     resetWhatIf();
   } catch (e) {
@@ -581,6 +599,7 @@ async function loadReport(seq) {
 
 /* ---------------- what-if ---------------- */
 function resetWhatIf() {
+  resetSim();
   $("whatif-answer").classList.add("hidden");
   $("whatif-input").value = "";
   const p = state.lastPred;
@@ -740,9 +759,86 @@ function exportPDF() {
   requestAnimationFrame(() => window.print());
 }
 
+/* ---------------- 실제 점포 (OSM) ---------------- */
+function toggleStores() {
+  state.storesOn = !state.storesOn;
+  const b = $("stores-toggle");
+  b.classList.toggle("on", state.storesOn);
+  b.setAttribute("aria-pressed", state.storesOn ? "true" : "false");
+  if (state.storesOn) loadStores(); else clearStores();
+}
+async function loadStores() {
+  if (!state.storesOn || !state.loc || !state.industry) { clearStores(); return; }
+  const key = `${state.industry}:${state.loc.lat.toFixed(4)}:${state.loc.lon.toFixed(4)}`;
+  if (state.storesKey === key && state.storesMarkers.length) return;
+  const b = $("stores-toggle"); b.classList.add("loading-b");
+  try {
+    const r = await api(`/api/stores?lat=${state.loc.lat}&lon=${state.loc.lon}&industry=${encodeURIComponent(state.industry)}`);
+    if (!state.storesOn) return;
+    state.storesKey = key;
+    renderStores(r.stores);
+    if (!r.stores.length) toast("이 반경엔 지도에 등록된 실제 점포가 없어요");
+  } catch (e) { clearStores(); }
+  finally { b.classList.remove("loading-b"); }
+}
+function renderStores(list) {
+  state.storesLayer.clearLayers();
+  state.storesMarkers = [];
+  list.forEach((s) => {
+    const icon = L.divIcon({ html: `<div class="store-dot"></div>`, className: "bubble-wrap", iconSize: [12, 12], iconAnchor: [6, 6] });
+    const m = L.marker([s.lat, s.lon], { icon, zIndexOffset: 400 })
+      .bindTooltip(esc(s.name), { direction: "top", offset: [0, -6] });
+    m.addTo(state.storesLayer);
+    state.storesMarkers.push(m);
+  });
+}
+function clearStores() {
+  if (state.storesLayer) state.storesLayer.clearLayers();
+  state.storesMarkers = []; state.storesKey = null;
+}
+
+/* ---------------- what-if 시뮬레이터 ---------------- */
+function runSim() {
+  if (!state.lastPred) return;
+  const rent = parseInt($("sim-rent").value, 10) || 0;
+  const foot = parseInt($("sim-foot").value, 10) || 0;
+  const comp = parseInt($("sim-comp").value, 10) || 0;
+  $("sim-rent-v").textContent = `${rent > 0 ? "+" : ""}${rent}%`;
+  $("sim-foot-v").textContent = `${foot > 0 ? "+" : ""}${foot}%`;
+  $("sim-comp-v").textContent = `${comp > 0 ? "+" : ""}${comp}%`;
+  clearTimeout(state._simT);
+  state._simT = setTimeout(async () => {
+    const p = state.lastPred.input;
+    try {
+      const r = await api(`/api/whatif_sim?gu=${encodeURIComponent(p.gu)}&industry=${encodeURIComponent(p.industry)}&lat=${p.lat}&lon=${p.lon}&rent=${rent / 100}&foot=${foot / 100}&comp=${comp / 100}`);
+      renderSimOut(r);
+    } catch (e) { /* 무시 */ }
+  }, 180);
+}
+function renderSimOut(r) {
+  const rows = [["1년", "y1"], ["3년", "y3"], ["5년", "y5"]];
+  $("sim-out").innerHTML = rows.map(([lab, k]) => {
+    const b = r.base[k], a = r.adjusted[k], d = Math.round((a - b) * 10) / 10;
+    const cls = d > 0 ? "up" : d < 0 ? "down" : "";
+    const arrow = d > 0 ? "▲" : d < 0 ? "▼" : "—";
+    return `<div class="so-row"><span class="so-k">${lab}</span>
+      <span class="so-base">${b}%</span><span class="so-arr">→</span>
+      <span class="so-adj" style="color:${bandColor(bandFor(a))}">${a}%</span>
+      <span class="so-delta ${cls}">${arrow} ${Math.abs(d)}%p</span></div>`;
+  }).join("");
+}
+function resetSim() {
+  ["sim-rent", "sim-foot", "sim-comp"].forEach((id) => { const el = $(id); if (el) el.value = 0; });
+  ["sim-rent-v", "sim-foot-v", "sim-comp-v"].forEach((id) => { const el = $(id); if (el) el.textContent = "0%"; });
+  const so = $("sim-out"); if (so) so.innerHTML = `<div class="so-hint">위 3개 슬라이더를 움직이면 생존율이 실시간으로 바뀝니다.</div>`;
+}
+
 /* ---------------- events ---------------- */
 document.querySelectorAll("#region-scope .scope-btn").forEach((b) => { b.onclick = () => setScope(b.dataset.scope); });
+document.querySelectorAll("#ml-horizon .mh").forEach((b) => { b.onclick = () => setHorizon(Number(b.dataset.h)); });
 $("listing-toggle").onclick = toggleListings;
+$("stores-toggle").onclick = toggleStores;
+["sim-rent", "sim-foot", "sim-comp"].forEach((id) => { const el = $(id); if (el) el.addEventListener("input", runSim); });
 document.querySelectorAll("#tabbar .tab").forEach((t) => { t.onclick = () => showTab(t.dataset.tab); });
 $("share-btn").onclick = shareLink;
 $("pdf-btn").onclick = exportPDF;
