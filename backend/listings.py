@@ -103,6 +103,32 @@ def expected_sales_manwon(gu: str, industry: str, area: int, floor_factor: float
     return per_pyeong * area * floor_factor * mult
 
 
+def recommend(industry: str, scope: str = "전체", max_rent: int = 100000,
+              max_deposit: int = 100000000, min_area: int = 0, limit: int = 8) -> list[dict]:
+    """예산(최대 월세·보증금, 최소 면적) 안의 매물을 생존율 내림차순으로 추천."""
+    from . import survival  # 지연 import (순환 방지)
+    cands = []
+    for gu, rows in _BY_GU.items():
+        if scope in ("서울", "경기") and data.district_region(gu) != scope:
+            continue
+        for l in rows:
+            if l["rent_manwon"] > max_rent or l["deposit_manwon"] > max_deposit or l["area_pyeong"] < min_area:
+                continue
+            core = survival._predict_core(gu, industry, l["lat"], l["lon"])
+            s36 = core["surv"][36]
+            a = analyze(l, industry)
+            cands.append({
+                "id": l["id"], "gu": gu, "region": l["region"], "lat": l["lat"], "lon": l["lon"],
+                "title": l["title"], "floor": l["floor"], "area_pyeong": l["area_pyeong"],
+                "rent_manwon": l["rent_manwon"], "deposit_manwon": l["deposit_manwon"],
+                "y3": round(s36 * 100, 1), "band": survival._band(s36),
+                "verdict": a["verdict"], "rent_to_sales_pct": a["rent_to_sales_pct"],
+            })
+    # 생존율 높은 순 → 임대료 부담 낮은 순
+    cands.sort(key=lambda r: (-r["y3"], r["rent_to_sales_pct"]))
+    return cands[:limit]
+
+
 def analyze(listing: dict, industry: str) -> dict:
     """임대료(월세+관리비) 대비 예상 월매출 비율로 부담도 분석."""
     gu = listing["gu"]

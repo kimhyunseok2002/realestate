@@ -33,6 +33,10 @@
         <svg class="icon" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>
         <span>매물</span>
       </button>
+      <button type="button" class="listing-toggle" id="budget-btn" aria-haspopup="dialog">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h13v4"/><path d="M3 7v10a2 2 0 0 0 2 2h16V9H5"/><path d="M16 13h.01"/></svg>
+        <span>예산추천</span>
+      </button>
     </div>
   </div>
 
@@ -92,55 +96,93 @@
       </div>
 
       <div id="result-body" class="hidden">
-        <div class="listing-card hidden" id="listing-card"></div>
         <div class="divider"></div>
-        <h2 class="result-title" id="result-title"></h2>
-
-        <div class="tiles" id="tiles"></div>
-        <div class="summary-row" id="summary"></div>
-
-        <div class="block-sec">
-          <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m7 14 4-5 3 3 5-7"/></svg></span> 생존곡선 · Kaplan-Meier & Cox</div>
-          <div class="chart-card">
-            <div class="chart-wrap"><canvas id="survival-chart"></canvas></div>
-            <div class="legend" id="chart-legend"></div>
+        <div class="result-head">
+          <h2 class="result-title" id="result-title"></h2>
+          <div class="result-actions">
+            <button class="ract" id="share-btn" type="button" title="분석 링크 복사">
+              <svg class="icon" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg><span>공유</span>
+            </button>
+            <button class="ract" id="pdf-btn" type="button" title="PDF로 저장(인쇄)">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 12 5 5 5-5"/><path d="M5 21h14"/></svg><span>PDF</span>
+            </button>
           </div>
         </div>
 
-        <div class="block-sec">
-          <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M5 8h14"/><path d="M8 13h8"/><path d="M10 18h4"/></svg></span> 위험 분해 — 3년 생존율 기여 (%p)</div>
-          <div class="risk-list" id="risk-list"></div>
-          <div class="risk-scale"><span>← 깎는 요인</span><span>받쳐주는 요인 →</span></div>
-          <div class="risk-note" id="risk-note"></div>
-        </div>
+        <nav class="tabbar" id="tabbar" role="tablist">
+          <button class="tab active" data-tab="summary" role="tab" type="button">요약</button>
+          <button class="tab" data-tab="curve" role="tab" type="button">생존곡선</button>
+          <button class="tab" data-tab="risk" role="tab" type="button">위험분해</button>
+          <button class="tab" data-tab="fit" role="tab" type="button">업종추천</button>
+          <button class="tab" data-tab="report" role="tab" type="button">AI 리포트</button>
+        </nav>
 
-        <div class="block-sec">
-          <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="17" y="4" width="4" height="16" rx="1"/></svg></span> 유사 상권 비교</div>
-          <div class="sim-list" id="sim-list"></div>
-          <div class="avg-note" id="sim-note"></div>
-        </div>
+        <div class="tab-panels" id="tab-panels">
+          <!-- 요약 -->
+          <section class="tabpane" data-pane="summary">
+            <div class="listing-card hidden" id="listing-card"></div>
+            <div class="tiles" id="tiles"></div>
+            <div class="summary-row" id="summary"></div>
+          </section>
 
-        <div class="block-sec">
-          <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M4 6h16"/><circle cx="9" cy="6" r="2"/><path d="M4 12h16"/><circle cx="15" cy="12" r="2"/><path d="M4 18h16"/><circle cx="7" cy="18" r="2"/></svg></span> 이 지점의 상권 변수</div>
-          <div class="feat-grid" id="feat-grid"></div>
-        </div>
-
-        <div class="block-sec">
-          <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5L5 10l5.1-1.9L12 3Z"/></svg></span> AI 리포트 <span id="report-src" style="margin-left:auto"></span></div>
-          <div class="report-box" id="report-box"><span class="loading"><span class="spinner"></span> 리포트 생성 중…</span></div>
-        </div>
-
-        <div class="block-sec">
-          <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M8 21H3v-5"/><path d="M21 3l-7.5 7.5"/><path d="M3 21l7.5-7.5"/></svg></span> what-if — 바꿔보면?</div>
-          <div class="whatif-row">
-            <div class="input-wrap">
-              <span class="in-ico"><svg class="icon" viewBox="0 0 24 24"><path d="M8 9h8"/><path d="M8 13h5"/><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
-              <input type="text" id="whatif-input" placeholder="카페 말고 베이커리면?" />
+          <!-- 생존곡선 -->
+          <section class="tabpane is-hidden" data-pane="curve">
+            <div class="block-sec">
+              <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m7 14 4-5 3 3 5-7"/></svg></span> 생존곡선 · Kaplan-Meier & Cox</div>
+              <div class="chart-card">
+                <div class="chart-wrap"><canvas id="survival-chart"></canvas></div>
+                <div class="legend" id="chart-legend"></div>
+              </div>
             </div>
-            <button class="btn sm" id="whatif-btn">질문</button>
-          </div>
-          <div class="whatif-suggest" id="whatif-suggest"></div>
-          <div class="whatif-answer hidden" id="whatif-answer"></div>
+          </section>
+
+          <!-- 위험분해 -->
+          <section class="tabpane is-hidden" data-pane="risk">
+            <div class="block-sec">
+              <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M5 8h14"/><path d="M8 13h8"/><path d="M10 18h4"/></svg></span> 위험 분해 — 3년 생존율 기여 (%p)</div>
+              <div class="risk-list" id="risk-list"></div>
+              <div class="risk-scale"><span>← 깎는 요인</span><span>받쳐주는 요인 →</span></div>
+              <div class="risk-note" id="risk-note"></div>
+            </div>
+            <div class="block-sec">
+              <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="17" y="4" width="4" height="16" rx="1"/></svg></span> 유사 상권 비교</div>
+              <div class="sim-list" id="sim-list"></div>
+              <div class="avg-note" id="sim-note"></div>
+            </div>
+            <div class="block-sec">
+              <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M4 6h16"/><circle cx="9" cy="6" r="2"/><path d="M4 12h16"/><circle cx="15" cy="12" r="2"/><path d="M4 18h16"/><circle cx="7" cy="18" r="2"/></svg></span> 이 지점의 상권 변수</div>
+              <div class="feat-grid" id="feat-grid"></div>
+            </div>
+          </section>
+
+          <!-- 업종추천 -->
+          <section class="tabpane is-hidden" data-pane="fit">
+            <div class="block-sec">
+              <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M3 7h18l-1.5 4.5a2 2 0 0 1-1.9 1.3H6.4a2 2 0 0 1-1.9-1.3L3 7Z"/><path d="M5 13v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-6"/></svg></span> 이 자리에 맞는 업종 — 3년 생존율순</div>
+              <div class="fit-list" id="fit-list"></div>
+              <div class="risk-note">이 지점 좌표 기준으로 10개 업종의 3년 생존율을 계산해 정렬했습니다. 항목을 누르면 그 업종으로 다시 분석합니다.</div>
+            </div>
+          </section>
+
+          <!-- AI 리포트 -->
+          <section class="tabpane is-hidden" data-pane="report">
+            <div class="block-sec">
+              <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5L5 10l5.1-1.9L12 3Z"/></svg></span> AI 리포트 <span id="report-src" style="margin-left:auto"></span></div>
+              <div class="report-box" id="report-box"><span class="loading"><span class="spinner"></span> 리포트 생성 중…</span></div>
+            </div>
+            <div class="block-sec">
+              <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M8 21H3v-5"/><path d="M21 3l-7.5 7.5"/><path d="M3 21l7.5-7.5"/></svg></span> what-if — 바꿔보면?</div>
+              <div class="whatif-row">
+                <div class="input-wrap">
+                  <span class="in-ico"><svg class="icon" viewBox="0 0 24 24"><path d="M8 9h8"/><path d="M8 13h5"/><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+                  <input type="text" id="whatif-input" placeholder="카페 말고 베이커리면?" />
+                </div>
+                <button class="btn sm" id="whatif-btn">질문</button>
+              </div>
+              <div class="whatif-suggest" id="whatif-suggest"></div>
+              <div class="whatif-answer hidden" id="whatif-answer"></div>
+            </div>
+          </section>
         </div>
 
         <div class="prov" id="prov"></div>
@@ -210,6 +252,35 @@
           <span class="team-k">TEAM</span>
           <span class="team-v">김현석 · 최지훈</span>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 예산 추천 모달 -->
+  <div class="modal-overlay hidden" id="budget-modal">
+    <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="budget-hd">
+      <button class="modal-close" id="budget-close" type="button" aria-label="닫기">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+      <div class="modal-hero">
+        <div class="logo lg" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h13v4"/><path d="M3 7v10a2 2 0 0 0 2 2h16V9H5"/><path d="M16 13h.01"/></svg></div>
+        <div>
+          <div class="modal-brand budget-brand" id="budget-hd">예산 추천</div>
+          <div class="modal-tag">예산을 넣으면 그 안에서 <b>가장 오래 살아남는 매물</b>을 찾아드립니다</div>
+        </div>
+      </div>
+      <div class="modal-scroll">
+        <div class="budget-form">
+          <div class="bf-field"><span class="bf-k">업종</span><span class="bf-val" id="bf-industry">카페</span></div>
+          <label class="bf-field"><span class="bf-k">지역</span>
+            <select id="bf-scope"><option value="전체">전체</option><option value="서울">서울</option><option value="경기">경기</option></select>
+          </label>
+          <label class="bf-field"><span class="bf-k">최대 월세</span><span class="bf-in"><input type="number" id="bf-rent" value="300" min="0" step="10"><i>만원</i></span></label>
+          <label class="bf-field"><span class="bf-k">최대 보증금</span><span class="bf-in"><input type="number" id="bf-deposit" value="5000" min="0" step="100"><i>만원</i></span></label>
+          <label class="bf-field"><span class="bf-k">최소 면적</span><span class="bf-in"><input type="number" id="bf-area" value="0" min="0" step="1"><i>평</i></span></label>
+          <button class="btn" id="bf-run" type="button">추천 받기</button>
+        </div>
+        <div class="rec-list" id="rec-list"></div>
       </div>
     </div>
   </div>

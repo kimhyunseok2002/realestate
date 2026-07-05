@@ -124,6 +124,31 @@ def api_listing(lid: str, industry: str = Query(...)):
     return {"listing": lst, "analysis": analysis, "prediction": prediction}
 
 
+@app.get("/api/recommend")
+def api_recommend(industry: str = Query(...), scope: str = Query("전체"),
+                  max_rent: int = Query(100000), max_deposit: int = Query(100000000),
+                  min_area: int = Query(0), limit: int = Query(8, le=20)):
+    """예산 안에서 생존율이 높은 매물 추천 (예산 기반 역추천)."""
+    if industry not in data.INDUSTRIES:
+        raise HTTPException(400, f"알 수 없는 업종: {industry}")
+    results = listings.recommend(industry, scope, max_rent, max_deposit, min_area, limit)
+    return {"industry": industry, "industry_label": data.industry_label(industry),
+            "scope": scope, "results": results}
+
+
+# ---------------------------------------------------------------------------
+# 업종 적합도 (이 자리에 어떤 업종이 오래 사나)
+# ---------------------------------------------------------------------------
+@app.get("/api/industry_fit")
+def api_industry_fit(gu: str = Query(...),
+                     lat: float = Query(..., ge=36.8, le=38.4),
+                     lon: float = Query(..., ge=126.2, le=127.9)):
+    if gu not in data.DISTRICTS:
+        raise HTTPException(400, f"알 수 없는 지역: {gu}")
+    return {"gu": gu, "region": data.district_region(gu),
+            "industries": survival.industry_fit(gu, lat, lon)}
+
+
 # ---------------------------------------------------------------------------
 # 예측
 # ---------------------------------------------------------------------------

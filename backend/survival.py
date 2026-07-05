@@ -259,6 +259,25 @@ def overview(industry: str) -> list[dict]:
     return out
 
 
+def industry_fit(gu: str, lat: float, lon: float) -> list[dict]:
+    """이 지점에서 10개 업종의 3년 생존율을 계산해 내림차순 정렬 (역방향 추천)."""
+    if gu not in data.DISTRICTS:
+        raise ValueError(f"알 수 없는 지역: {gu}")
+    out = []
+    for key in data.INDUSTRIES:
+        core = _predict_core(gu, key, lat, lon)
+        s36 = core["surv"][36]
+        out.append(dict(
+            industry=key, label=data.industry_label(key),
+            y1=round(core["surv"][12] * 100, 1),
+            y3=round(s36 * 100, 1),
+            y5=round(core["surv"][60] * 100, 1),
+            band=_band(s36), hr=round(core["hr"], 2),
+        ))
+    out.sort(key=lambda r: r["y3"], reverse=True)
+    return out
+
+
 def predict(gu: str, industry: str, lat: float, lon: float) -> dict:
     """메인 예측 엔트리포인트. app.py 가 이걸 호출한다."""
     if gu not in data.DISTRICTS:

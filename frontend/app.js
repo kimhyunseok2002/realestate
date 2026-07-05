@@ -41,6 +41,7 @@ const state = {
   reverseSeq: 0, predictSeq: 0,
   scope: "전체", regionOf: {}, ovLabel: "",
   listingsOn: false, listingLayer: null, listingMarkers: {}, listingsGu: null,
+  tab: "summary", fitFor: null, _toastT: null,
 };
 
 const COLORS = {
@@ -98,8 +99,18 @@ async function init() {
   buildIndustryChips();
   buildRegionChips();
   initMap();
-  await selectIndustry("카페");                 // 기본 업종 → 지도 버블
-  await setLocation(37.4979, 127.0276, { fly: true, zoom: 12 }); // 강남역 데모(자치구 버블이 여러 개 보이도록)
+  // 딥링크(?gu=&industry=&lat=&lon=)가 있으면 그 분석을 복원, 없으면 강남역 데모
+  const q = new URLSearchParams(location.search);
+  const qi = q.get("industry");
+  await selectIndustry(qi && state.meta.industries.some((i) => i.key === qi) ? qi : "카페");
+  const qlat = parseFloat(q.get("lat")), qlon = parseFloat(q.get("lon")), qgu = q.get("gu");
+  if (isFinite(qlat) && isFinite(qlon)) {
+    await setLocation(qlat, qlon, qgu && state.regionOf[qgu]
+      ? { gu: qgu, address: `${regionLabel(qgu)} ${qgu}`, skipReverse: true, fly: true, zoom: 14, reveal: true }
+      : { fly: true, zoom: 14, reveal: true });
+  } else {
+    await setLocation(37.4979, 127.0276, { fly: true, zoom: 12 });   // 강남역 데모
+  }
 }
 
 function buildIndustryChips() {
@@ -352,6 +363,8 @@ function renderResults(p, reveal) {
 
   renderChart(p); renderRisks(p); renderSimilar(p); renderFeatures(p);
   $("prov").innerHTML = `<span class="ico">${ICONS.info}</span><span><b>데이터:</b> ${esc(p.provenance.note)} 출처(연결 예정): ${esc(p.provenance.sources.map((s) => s.name).join(", "))}</span>`;
+  state.fitFor = null;
+  showTab("summary");
   staggerReveal(body);
   if (reveal) requestAnimationFrame(scrollToResults);
 }
@@ -506,6 +519,7 @@ async function openListing(lid) {
     renderResults(r.prediction, true);          // 결과 렌더(매물 카드는 숨겨짐)
     renderListingCard(l, r.analysis);            // 그 위에 매물 분석 카드 표시
     highlightBubble(l.gu); highlightRegionChip(l.gu);
+    if (state.listingsOn) loadListings();
     loadReport(seq);
     resetWhatIf();
   } catch (e) {
@@ -624,11 +638,118 @@ $("about-modal").addEventListener("keydown", (e) => {   // Tab 포커스 트랩
   if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAbout(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeAbout(); closeBudget(); } });
+
+/* ---------------- 탭 메뉴 ---------------- */
+function showTab(name) {
+  state.tab = name;
+  document.querySelectorAll("#tabbar .tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
+  document.querySelectorAll("#tab-panels .tabpane").forEach((p) => p.classList.toggle("is-hidden", p.dataset.pane !== name));
+  if (name === "curve" && state.chart) requestAnimationFrame(() => state.chart.resize());
+  if (name === "fit") loadFit();
+}
+
+/* ---------------- 업종추천 (이 자리에 뭐가 맞나) ---------------- */
+async function loadFit() {
+  if (!state.loc || !state.loc.gu) return;
+  const key = `${state.loc.gu}:${state.loc.lat}:${state.loc.lon}`;
+  if (state.fitFor === key) return;                       // 현재 지점 이미 계산됨
+  const box = $("fit-list");
+  box.innerHTML = `<div class="loading"><span class="spinner"></span> 업종별 생존율 계산 중…</div>`;
+  try {
+    const r = await api(`/api/industry_fit?gu=${encodeURIComponent(state.loc.gu)}&lat=${state.loc.lat}&lon=${state.loc.lon}`);
+    state.fitFor = key;
+    renderFit(r.industries);
+  } catch (e) { box.innerHTML = `<div class="err">${ICONS.warn}<span>${esc(e.message)}</span></div>`; }
+}
+function renderFit(list) {
+  const cur = state.industry;
+  const maxv = Math.max(100, ...list.map((r) => r.y3));
+  $("fit-list").innerHTML = list.map((r, i) => `
+    <button type="button" class="fit-row ${r.industry === cur ? "me" : ""}" data-key="${r.industry}">
+      <span class="fit-rank">${i + 1}</span>
+      <span class="fit-name">${esc(r.label)}${r.industry === cur ? ' <em>현재</em>' : ""}</span>
+      <span class="fit-bar-track"><span class="fit-bar" style="width:${(r.y3 / maxv) * 100}%;background:${bandColor(r.band)}"></span></span>
+      <span class="fit-pct" style="color:${bandColor(r.band)}">${r.y3}%</span>
+    </button>`).join("");
+  document.querySelectorAll("#fit-list .fit-row").forEach((el) => {
+    el.onclick = () => selectIndustry(el.dataset.key);
+  });
+}
+
+/* ---------------- 예산 추천 ---------------- */
+function openBudget() {
+  $("bf-industry").textContent = (state.meta.industries.find((i) => i.key === state.industry) || {}).label || state.industry;
+  $("bf-scope").value = state.scope;
+  $("rec-list").innerHTML = `<div class="rec-hint">업종 <b>${esc($("bf-industry").textContent)}</b> 기준. 예산을 정하고 <b>추천 받기</b>를 누르세요.</div>`;
+  $("budget-modal").classList.remove("hidden");
+}
+function closeBudget() { $("budget-modal").classList.add("hidden"); }
+async function runRecommend() {
+  const rent = Math.max(0, parseInt($("bf-rent").value, 10) || 100000);
+  const dep = Math.max(0, parseInt($("bf-deposit").value, 10) || 100000000);
+  const area = Math.max(0, parseInt($("bf-area").value, 10) || 0);
+  const scope = $("bf-scope").value;
+  const box = $("rec-list");
+  box.innerHTML = `<div class="loading"><span class="spinner"></span> 예산 안 매물 탐색 중…</div>`;
+  try {
+    const r = await api(`/api/recommend?industry=${encodeURIComponent(state.industry)}&scope=${encodeURIComponent(scope)}&max_rent=${rent}&max_deposit=${dep}&min_area=${area}`);
+    renderRec(r.results);
+  } catch (e) { box.innerHTML = `<div class="err">${ICONS.warn}<span>${esc(e.message)}</span></div>`; }
+}
+function renderRec(list) {
+  if (!list.length) { $("rec-list").innerHTML = `<div class="rec-empty">조건에 맞는 매물이 없어요. 예산을 넓혀보세요.</div>`; return; }
+  $("rec-list").innerHTML = `<div class="rec-cap">예산 안 · 생존율 높은 순 ${list.length}곳</div>` + list.map((r, i) => `
+    <button type="button" class="rec-row" data-id="${esc(r.id)}">
+      <span class="rec-rank">${i + 1}</span>
+      <span class="rec-main">
+        <span class="rec-title">${regionLabel(r.gu)} ${esc(r.gu)} · ${esc(r.floor)} ${r.area_pyeong}평</span>
+        <span class="rec-sub">보증 ${r.deposit_manwon.toLocaleString()} / 월 ${r.rent_manwon.toLocaleString()}만원 · 임대료 ${esc(r.verdict)}</span>
+      </span>
+      <span class="rec-y3"><b style="color:${bandColor(r.band)}">${r.y3}%</b><i>3년</i></span>
+    </button>`).join("");
+  document.querySelectorAll("#rec-list .rec-row").forEach((el) => {
+    el.onclick = () => { closeBudget(); openListing(el.dataset.id); };
+  });
+}
+
+/* ---------------- 공유 · PDF ---------------- */
+function toast(msg) {
+  let t = $("toast");
+  if (!t) { t = document.createElement("div"); t.id = "toast"; t.className = "toast"; document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(state._toastT);
+  state._toastT = setTimeout(() => t.classList.remove("show"), 2200);
+}
+function shareLink() {
+  if (!state.loc) return;
+  const q = new URLSearchParams();
+  if (state.loc.gu) q.set("gu", state.loc.gu);
+  if (state.industry) q.set("industry", state.industry);
+  q.set("lat", state.loc.lat); q.set("lon", state.loc.lon);
+  const url = `${location.origin}${location.pathname}?${q.toString()}`;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(() => toast("분석 링크가 복사됐어요")).catch(() => toast(url));
+  } else { toast(url); }
+}
+function exportPDF() {
+  document.querySelectorAll("#tab-panels .tabpane").forEach((p) => p.classList.remove("is-hidden"));  // 인쇄용 전체 표시
+  if (state.chart) state.chart.resize();
+  const restore = () => { showTab(state.tab); window.removeEventListener("afterprint", restore); };
+  window.addEventListener("afterprint", restore);
+  requestAnimationFrame(() => window.print());
+}
 
 /* ---------------- events ---------------- */
 document.querySelectorAll("#region-scope .scope-btn").forEach((b) => { b.onclick = () => setScope(b.dataset.scope); });
 $("listing-toggle").onclick = toggleListings;
+document.querySelectorAll("#tabbar .tab").forEach((t) => { t.onclick = () => showTab(t.dataset.tab); });
+$("share-btn").onclick = shareLink;
+$("pdf-btn").onclick = exportPDF;
+$("budget-btn").onclick = openBudget;
+$("budget-close").onclick = closeBudget;
+$("bf-run").onclick = runRecommend;
+$("budget-modal").addEventListener("click", (e) => { if (e.target === $("budget-modal")) closeBudget(); });
 $("search").addEventListener("keydown", (e) => { if (e.key === "Enter") doSearch(); });
 $("whatif-btn").onclick = askWhatIf;
 $("whatif-input").addEventListener("keydown", (e) => { if (e.key === "Enter") askWhatIf(); });
