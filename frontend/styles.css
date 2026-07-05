@@ -307,6 +307,58 @@ svg.icon { width: 1em; height: 1em; display: inline-block; vertical-align: -0.14
 .whatif-sep { font-size: 11.5px; font-weight: 600; color: var(--muted); text-align: center; margin: 6px 0 10px;
   position: relative; }
 
+/* ---------- 입지 인프라 (실측) ---------- */
+.infra-sub { font-size: 11.5px; font-weight: 700; color: var(--muted); margin: 2px 0 8px; }
+.infra-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 15px; }
+.infra { background: var(--surface-2); border: 1px solid var(--border-2); border-radius: 11px; padding: 10px 11px; }
+.if-k { font-size: 11.5px; color: var(--ink-2); font-weight: 600; }
+.if-v { font-family: var(--font-mono); font-size: 18.5px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.if-v span { font-size: 11px; font-weight: 600; color: var(--ink-2); margin-left: 1px; font-family: var(--font-sans); }
+.if-s { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.anchor-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.anchor { display: flex; align-items: center; justify-content: space-between; gap: 6px; background: var(--surface-2);
+  border: 1px solid var(--border-2); border-radius: 9px; padding: 8px 11px; }
+.anchor.has { background: #eff5ff; border-color: #cfe0fb; }
+.an-k { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.an-v { font-family: var(--font-mono); font-size: 14.5px; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; }
+.anchor.has .an-v { color: var(--brand); }
+
+/* ---------- 리포트 페이월 ---------- */
+.report-box { white-space: normal; }
+.report-text { white-space: pre-wrap; }
+.report-dl { display: flex; gap: 6px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #dbe7fb; }
+.src-badge.src-lock { background: var(--warning-bg); color: #8a5a12; display: inline-flex; align-items: center; gap: 3px; }
+.src-badge.src-lock .icon { font-size: 11px; }
+.rl-teaser { font-size: 14.5px; line-height: 1.7; color: var(--ink-2); }
+.rl-lock { margin-top: 12px; padding: 16px; border-radius: 14px; background: rgba(255,255,255,.72);
+  border: 1px dashed #bcd2f5; text-align: center; }
+.rl-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 800; color: var(--brand-ink);
+  background: #e8f1ff; border-radius: 999px; padding: 5px 12px; }
+.rl-badge .icon { font-size: 13px; }
+.rl-desc { font-size: 13px; line-height: 1.6; color: var(--ink-2); margin: 11px 0 14px; }
+.rl-desc b { color: var(--ink); }
+.rl-btn { width: 100%; }
+
+/* ---------- 결제 모달 (데모) ---------- */
+.pay-price { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-radius: 13px;
+  background: var(--surface-3); border: 1px solid #cfe0fb; margin-bottom: 14px; }
+.pay-price span { font-size: 13.5px; font-weight: 600; color: var(--ink-2); }
+.pay-price b { font-family: var(--font-mono); font-size: 24px; font-weight: 800; color: var(--brand-ink); }
+.pay-methods { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.pm { font-family: inherit; font-size: 13px; font-weight: 700; color: var(--ink-2); background: var(--surface); cursor: pointer;
+  border: 1.5px solid var(--border); border-radius: 11px; padding: 11px 6px; transition: border-color .13s, color .13s, background .13s; }
+.pm:hover { border-color: var(--baseline); }
+.pm.active { border-color: var(--brand); color: var(--brand); background: #eff5ff; }
+.pay-card { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.pf { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; }
+.pf label { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.pf input { font-family: var(--font-mono); font-size: 14.5px; border: 1px solid var(--border); border-radius: 10px;
+  padding: 11px 12px; background: #fff; color: var(--ink); width: 100%; }
+.pf input:focus { outline: none; border-color: var(--brand); box-shadow: var(--ring); }
+.pf-row { display: flex; gap: 10px; }
+.pay-run { width: 100%; }
+.pay-note { font-size: 11.5px; color: var(--muted); text-align: center; margin-top: 12px; line-height: 1.5; }
+
 /* ---------- 인쇄(PDF 저장) ---------- */
 @media print {
   #map, .map-toolbar, .map-legend, .leaflet-control-container, .result-actions, .tabbar,
@@ -387,6 +439,7 @@ svg.icon { width: 1em; height: 1em; display: inline-block; vertical-align: -0.14
 .ar-k { font-size: 13.5px; font-weight: 700; color: var(--brand-ink); line-height: 1.4; }
 .ar-tag { display: inline-block; font-family: var(--font-mono); font-size: 9px; font-weight: 700; color: #8a5a12;
   background: var(--warning-bg); border: 1px solid #efd9b3; border-radius: 5px; padding: 1px 5px; margin-top: 3px; text-transform: uppercase; letter-spacing: .04em; }
+.ar-tag.on { color: var(--good); background: var(--good-bg); border-color: #bfe6cf; }
 .ar-v { font-size: 13.5px; line-height: 1.55; color: var(--ink); }
 .ar-src { display: block; font-size: 11px; color: var(--muted); margin-top: 3px; font-family: var(--font-mono); }
 .about-note { font-size: 11.5px; line-height: 1.6; color: var(--muted); margin-top: 11px;

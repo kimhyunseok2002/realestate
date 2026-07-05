@@ -165,6 +165,86 @@ def nearby_stores(lat: float, lon: float, industry: str, radius: int = 700, limi
     return out
 
 
+def _empty_context(radius: int) -> dict:
+    return {
+        "radius_m": radius, "available": False,
+        "transit": {"subway": {"count": 0, "nearest_m": None},
+                    "bus": {"count": 0, "nearest_m": None},
+                    "parking": {"count": 0, "nearest_m": None}},
+        "anchors": {"university": 0, "hospital": 0, "mall": 0,
+                    "cinema": 0, "government": 0, "school": 0},
+    }
+
+
+def place_context(lat: float, lon: float, radius: int = 1000) -> dict:
+    """좌표 주변의 실측 입지 인프라(OSM): 교통·접근성 + 앵커/집객시설."""
+    R = radius
+    q = (
+        f"[out:json][timeout:25];("
+        f"node[railway=station](around:{R},{lat},{lon});"
+        f"node[station=subway](around:{R},{lat},{lon});"
+        f"node[railway=subway_entrance](around:{R},{lat},{lon});"
+        f"node[highway=bus_stop](around:{R},{lat},{lon});"
+        f"nwr[amenity=parking](around:{R},{lat},{lon});"
+        f"nwr[amenity=university](around:{R},{lat},{lon});"
+        f"nwr[amenity=college](around:{R},{lat},{lon});"
+        f"nwr[amenity=hospital](around:{R},{lat},{lon});"
+        f"nwr[shop=mall](around:{R},{lat},{lon});"
+        f"nwr[shop=department_store](around:{R},{lat},{lon});"
+        f"node[amenity=cinema](around:{R},{lat},{lon});"
+        f"nwr[amenity=townhall](around:{R},{lat},{lon});"
+        f"nwr[office=government](around:{R},{lat},{lon});"
+        f"nwr[amenity=school](around:{R},{lat},{lon});"
+        f");out center;"
+    )
+    try:
+        body = urllib.parse.urlencode({"data": q}).encode()
+        req = urllib.request.Request(OVERPASS, data=body, headers={"User-Agent": UA})
+        with urllib.request.urlopen(req, timeout=TIMEOUT + 22) as resp:
+            j = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return _empty_context(radius)
+
+    ctx = _empty_context(radius)
+    ctx["available"] = True
+
+    def upd_transit(key, elat, elon, count=True):
+        t = ctx["transit"][key]
+        if count:
+            t["count"] += 1
+        d = round(_haversine(lat, lon, elat, elon))
+        if t["nearest_m"] is None or d < t["nearest_m"]:
+            t["nearest_m"] = d
+
+    for el in j.get("elements", []):
+        tags = el.get("tags") or {}
+        elat = el.get("lat") or (el.get("center") or {}).get("lat")
+        elon = el.get("lon") or (el.get("center") or {}).get("lon")
+        if elat is None or elon is None:
+            continue
+        if tags.get("railway") == "station" or tags.get("station") == "subway":
+            upd_transit("subway", elat, elon, count=True)
+        elif tags.get("railway") == "subway_entrance":
+            upd_transit("subway", elat, elon, count=False)   # 출입구는 거리만
+        elif tags.get("highway") == "bus_stop":
+            upd_transit("bus", elat, elon)
+        elif tags.get("amenity") == "parking":
+            upd_transit("parking", elat, elon)
+        elif tags.get("amenity") in ("university", "college"):
+            ctx["anchors"]["university"] += 1
+        elif tags.get("amenity") == "hospital":
+            ctx["anchors"]["hospital"] += 1
+        elif tags.get("shop") in ("mall", "department_store"):
+            ctx["anchors"]["mall"] += 1
+        elif tags.get("amenity") == "cinema":
+            ctx["anchors"]["cinema"] += 1
+        elif tags.get("amenity") == "townhall" or tags.get("office") == "government":
+            ctx["anchors"]["government"] += 1
+        elif tags.get("amenity") == "school":
+            ctx["anchors"]["school"] += 1
+    return ctx
+
+
 def reverse(lat: float, lon: float) -> dict:
     """좌표 → 주소 문자열 (+ 지원 자치구 매핑)."""
     address_text = ""

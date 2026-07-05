@@ -164,6 +164,10 @@
               <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M4 6h16"/><circle cx="9" cy="6" r="2"/><path d="M4 12h16"/><circle cx="15" cy="12" r="2"/><path d="M4 18h16"/><circle cx="7" cy="18" r="2"/></svg></span> 이 지점의 상권 변수</div>
               <div class="feat-grid" id="feat-grid"></div>
             </div>
+            <div class="block-sec">
+              <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="16" rx="2"/><path d="M4 11h16"/><path d="M9 19l-2 2M15 19l2 2"/><circle cx="8.5" cy="15" r="1"/><circle cx="15.5" cy="15" r="1"/></svg></span> 입지 인프라 — 반경 1km 실측 (OpenStreetMap)</div>
+              <div class="infra-wrap" id="infra"></div>
+            </div>
           </section>
 
           <!-- 업종추천 -->
@@ -239,7 +243,7 @@
             <div class="ar"><div class="ar-k">배후 인구 · 소득 · 소비</div><div class="ar-v">인구 · 가구 · 사업체 · 소득 <span class="ar-src">통계청 SGIS</span></div></div>
             <div class="ar"><div class="ar-k">임대료 · 공실률</div><div class="ar-v">상업용 임대료 · 공실률 <span class="ar-src">국토부 실거래가 · 한국부동산원</span></div></div>
             <div class="ar"><div class="ar-k">경쟁 밀집도</div><div class="ar-v">반경 내 동종 점포 밀도 <span class="ar-src">상가정보 API</span></div></div>
-            <div class="ar"><div class="ar-k">교통 · 미시입지 · 앵커시설</div><div class="ar-v">지하철·버스·주차 / 1층·코너·가시성 / 마트·대학·병원·관공서 <span class="ar-src">지도 · 공간 데이터</span></div></div>
+            <div class="ar"><div class="ar-k">교통 · 앵커시설 <span class="ar-tag on">실측</span></div><div class="ar-v">지하철·버스·주차 / 마트·대학·병원·영화관·관공서·학교 <span class="ar-src">OpenStreetMap 실측 (위험분해 탭 · 반경 1km)</span></div></div>
             <div class="ar"><div class="ar-k">미래 수요</div><div class="ar-v">신규 아파트·오피스 입주 · 재개발 · 지하철 신설 계획 <span class="ar-src">도시계획 데이터</span></div></div>
             <div class="ar"><div class="ar-k">살아있는 수요 신호</div><div class="ar-v">배달앱 주문 밀도 · 네이버·카카오 플레이스 리뷰·평점 · 데이터랩 검색량 · SNS <span class="ar-src">플레이스 · 데이터랩 · 트렌드</span></div></div>
             <div class="ar"><div class="ar-k">거시 환경</div><div class="ar-v">금리 · 임대료·인건비·최저임금 추이 · 외부 충격(감염병 등) 업종별 반응 <span class="ar-src">거시 지표</span></div></div>
@@ -300,6 +304,39 @@
           <button class="btn" id="bf-run" type="button">추천 받기</button>
         </div>
         <div class="rec-list" id="rec-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 리포트 결제 모달 (데모) -->
+  <div class="modal-overlay hidden" id="pay-modal">
+    <div class="modal modal-sm">
+      <button class="modal-close" id="pay-close" type="button" aria-label="닫기">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+      <div class="modal-hero">
+        <div class="logo lg" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+        <div>
+          <div class="modal-brand budget-brand">리포트 결제</div>
+          <div class="modal-tag" id="pay-item">생존 리포트</div>
+        </div>
+      </div>
+      <div class="modal-scroll">
+        <div class="pay-price"><span>결제 금액</span><b>₩9,900</b></div>
+        <div class="pay-methods" id="pay-methods">
+          <button type="button" class="pm active" data-m="card">카드</button>
+          <button type="button" class="pm" data-m="kakao">카카오페이</button>
+          <button type="button" class="pm" data-m="toss">토스페이</button>
+        </div>
+        <div class="pay-card" id="pay-card">
+          <div class="pf"><label>카드 번호</label><input id="pf-num" inputmode="numeric" placeholder="0000 0000 0000 0000" maxlength="19"></div>
+          <div class="pf-row">
+            <div class="pf"><label>유효기간</label><input id="pf-exp" placeholder="MM / YY" maxlength="7"></div>
+            <div class="pf"><label>CVC</label><input id="pf-cvc" inputmode="numeric" placeholder="123" maxlength="3"></div>
+          </div>
+        </div>
+        <button class="btn pay-run" id="pay-run" type="button">₩9,900 결제하기</button>
+        <div class="pay-note">데모 결제입니다 — 실제로 청구되지 않습니다. 아무 값이나 입력해도 됩니다.</div>
       </div>
     </div>
   </div>

@@ -179,6 +179,16 @@ def api_stores(lat: float = Query(..., ge=36.8, le=38.4),
 
 
 # ---------------------------------------------------------------------------
+# 입지 인프라 (실측 · OSM): 교통·접근성 + 앵커/집객시설
+# ---------------------------------------------------------------------------
+@app.get("/api/context")
+def api_context(lat: float = Query(..., ge=36.8, le=38.4),
+                lon: float = Query(..., ge=126.2, le=127.9),
+                radius: int = Query(1000, ge=200, le=2000)):
+    return geocode.place_context(lat, lon, radius)
+
+
+# ---------------------------------------------------------------------------
 # 예측
 # ---------------------------------------------------------------------------
 def _resolve_gu(gu: str | None, lat: float, lon: float, address: str) -> tuple[str, dict]:

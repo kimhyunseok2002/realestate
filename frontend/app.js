@@ -41,9 +41,10 @@ const state = {
   reverseSeq: 0, predictSeq: 0,
   scope: "전체", regionOf: {}, ovLabel: "",
   listingsOn: false, listingLayer: null, listingMarkers: {}, listingsGu: null,
-  tab: "summary", fitFor: null, _toastT: null,
+  tab: "summary", fitFor: null, infraFor: null, _toastT: null,
   horizon: 3, _simT: null,
   storesOn: false, storesLayer: null, storesMarkers: [], storesKey: null,
+  paid: {}, payKey: null, payThen: "view", reportText: "", reportSrc: "",
 };
 
 const COLORS = {
@@ -95,6 +96,7 @@ async function init() {
   try { state.meta = await api("/api/meta"); }
   catch (e) { document.body.insertAdjacentHTML("afterbegin", `<div class="err" style="margin:12px">메타 로드 실패: ${esc(e.message)}</div>`); return; }
 
+  loadPaid();
   state.regionOf = {};
   state.meta.districts.forEach((d) => { state.regionOf[d.gu] = d.region; });
 
@@ -381,6 +383,7 @@ function renderResults(p, reveal) {
   renderChart(p); renderRisks(p); renderSimilar(p); renderFeatures(p);
   $("prov").innerHTML = `<span class="ico">${ICONS.info}</span><span><b>데이터:</b> ${esc(p.provenance.note)} 출처(연결 예정): ${esc(p.provenance.sources.map((s) => s.name).join(", "))}</span>`;
   state.fitFor = null;
+  state.infraFor = null;
   showTab("summary");
   staggerReveal(body);
   if (reveal) requestAnimationFrame(scrollToResults);
@@ -587,14 +590,95 @@ async function loadReport(seq) {
       body: JSON.stringify({ gu: p.input.gu, industry: p.input.industry, lat: p.input.lat, lon: p.input.lon }),
     });
     if (seq !== state.predictSeq) return;          // 위치/업종 바뀌면 무시
-    box.textContent = r.text;
-    srcEl.innerHTML = r.source === "claude"
-      ? `<span class="src-badge src-claude">${ICONS.spark} Claude</span>`
-      : `<span class="src-badge src-template">템플릿</span>`;
+    state.reportText = r.text;
+    state.reportSrc = r.source;
+    renderReportGated();
   } catch (e) {
     if (seq !== state.predictSeq) return;
+    state.reportText = "";
     box.innerHTML = `<div class="err">${ICONS.warn}<span>리포트 생성 실패: ${esc(e.message)}</span></div>`;
   }
+}
+
+/* ---------------- 리포트 페이월 · 데모 결제 ---------------- */
+const LOCK_SVG = '<svg class="icon" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+function reportKey() {
+  const p = state.lastPred && state.lastPred.input;
+  return p ? `${p.gu}:${p.industry}:${p.lat}:${p.lon}` : null;
+}
+function isPaid() { const k = reportKey(); return !!(k && state.paid[k]); }
+function loadPaid() { try { state.paid = JSON.parse(localStorage.getItem("survimap_paid") || "{}") || {}; } catch (e) { state.paid = {}; } }
+function savePaid() { try { localStorage.setItem("survimap_paid", JSON.stringify(state.paid)); } catch (e) { /* */ } }
+
+function renderReportGated() {
+  const box = $("report-box"), srcEl = $("report-src");
+  if (!state.reportText) return;
+  if (isPaid()) {
+    srcEl.innerHTML = state.reportSrc === "claude"
+      ? `<span class="src-badge src-claude">${ICONS.spark} Claude</span>`
+      : `<span class="src-badge src-template">템플릿</span>`;
+    box.classList.add("unlocked");
+    box.innerHTML = `<div class="report-text">${esc(state.reportText)}</div>
+      <div class="report-dl">
+        <button type="button" class="ract" id="report-txt"><svg class="icon" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 12 5 5 5-5"/><path d="M5 21h14"/></svg> TXT 저장</button>
+        <button type="button" class="ract" id="report-pdf2"><svg class="icon" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 12 5 5 5-5"/><path d="M5 21h14"/></svg> PDF 저장</button>
+      </div>`;
+    $("report-txt").onclick = downloadReportTxt;
+    $("report-pdf2").onclick = exportPDF;
+  } else {
+    srcEl.innerHTML = `<span class="src-badge src-lock">${LOCK_SVG} 유료</span>`;
+    box.classList.remove("unlocked");
+    const teaser = String(state.reportText).replace(/\s+/g, " ").trim().slice(0, 56);
+    box.innerHTML = `
+      <div class="rl-teaser">${esc(teaser)}…</div>
+      <div class="rl-lock">
+        <div class="rl-badge">${LOCK_SVG} 프리미엄 리포트</div>
+        <div class="rl-desc">이 자리·업종의 <b>생존 리포트 전체</b>와 저장(PDF·TXT)은 결제 후 열람할 수 있어요.</div>
+        <button type="button" class="btn rl-btn" id="report-unlock">₩9,900 결제하고 전체 보기</button>
+      </div>`;
+    $("report-unlock").onclick = () => openCheckout("view");
+  }
+}
+function downloadReportTxt() {
+  if (!isPaid() || !state.lastPred) return;
+  const p = state.lastPred.input;
+  const body = `[SurviMap] ${regionLabel(p.gu)} ${p.gu} · ${p.industry_label} 생존 리포트\n\n${state.reportText}\n`;
+  const blob = new Blob([body], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `SurviMap_${p.gu}_${p.industry_label}.txt`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  toast("리포트를 저장했어요");
+}
+function openCheckout(then) {
+  if (!state.lastPred) return;
+  state.payThen = then || "view";
+  state.payKey = reportKey();
+  const p = state.lastPred.input;
+  $("pay-item").textContent = `${regionLabel(p.gu)} ${p.gu} · ${p.industry_label} 생존 리포트`;
+  setPayMethod("card");
+  $("pay-modal").classList.remove("hidden");
+}
+function closePay() { $("pay-modal").classList.add("hidden"); }
+function setPayMethod(m) {
+  document.querySelectorAll("#pay-methods .pm").forEach((b) => b.classList.toggle("active", b.dataset.m === m));
+  $("pay-card").classList.toggle("hidden", m !== "card");
+}
+function payNow() {
+  const btn = $("pay-run");
+  if (btn.disabled) return;
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner" style="border-color:rgba(255,255,255,.45);border-top-color:#fff"></span> 결제 중…`;
+  setTimeout(() => {
+    if (state.payKey) { state.paid[state.payKey] = true; savePaid(); }
+    btn.disabled = false; btn.textContent = orig;
+    closePay();
+    renderReportGated();
+    toast("결제 완료 🎉 리포트가 열렸어요");
+    if (state.payThen === "pdf") setTimeout(doPrint, 250);
+  }, 1100);
 }
 
 /* ---------------- what-if ---------------- */
@@ -657,7 +741,7 @@ $("about-modal").addEventListener("keydown", (e) => {   // Tab 포커스 트랩
   if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeAbout(); closeBudget(); } });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeAbout(); closeBudget(); closePay(); } });
 
 /* ---------------- 탭 메뉴 ---------------- */
 function showTab(name) {
@@ -666,6 +750,7 @@ function showTab(name) {
   document.querySelectorAll("#tab-panels .tabpane").forEach((p) => p.classList.toggle("is-hidden", p.dataset.pane !== name));
   if (name === "curve" && state.chart) requestAnimationFrame(() => state.chart.resize());
   if (name === "fit") loadFit();
+  if (name === "risk") loadInfra();
 }
 
 /* ---------------- 업종추천 (이 자리에 뭐가 맞나) ---------------- */
@@ -694,6 +779,46 @@ function renderFit(list) {
   document.querySelectorAll("#fit-list .fit-row").forEach((el) => {
     el.onclick = () => selectIndustry(el.dataset.key);
   });
+}
+
+/* ---------------- 입지 인프라 (실측 · OSM) ---------------- */
+async function loadInfra() {
+  if (!state.loc) return;
+  const key = `${state.loc.lat.toFixed(5)}:${state.loc.lon.toFixed(5)}`;
+  if (state.infraFor === key) return;
+  const box = $("infra");
+  box.innerHTML = `<div class="loading"><span class="spinner"></span> 주변 교통·집객시설 실측 조회 중…</div>`;
+  try {
+    const c = await api(`/api/context?lat=${state.loc.lat}&lon=${state.loc.lon}`);
+    state.infraFor = key;
+    renderInfra(c);
+  } catch (e) { box.innerHTML = `<div class="err">${ICONS.warn}<span>${esc(e.message)}</span></div>`; }
+}
+function renderInfra(c) {
+  if (!c || !c.available) {
+    $("infra").innerHTML = `<div class="so-hint">실측 인프라 조회에 실패했어요. 잠시 후 이 탭을 다시 열어보세요.</div>`;
+    return;
+  }
+  const t = c.transit, a = c.anchors;
+  const dist = (m) => (m == null ? "반경 밖" : m < 1000 ? `최단 ${m}m` : `최단 ${(m / 1000).toFixed(1)}km`);
+  const transit = [
+    { k: "지하철역", v: t.subway.count, s: dist(t.subway.nearest_m) },
+    { k: "버스정류장", v: t.bus.count, s: dist(t.bus.nearest_m) },
+    { k: "주차장", v: t.parking.count, s: dist(t.parking.nearest_m) },
+  ];
+  const anchors = [
+    { k: "대학", v: a.university }, { k: "병원", v: a.hospital }, { k: "마트·백화점", v: a.mall },
+    { k: "영화관", v: a.cinema }, { k: "관공서", v: a.government }, { k: "학교", v: a.school },
+  ];
+  $("infra").innerHTML = `
+    <div class="infra-sub">교통 · 접근성</div>
+    <div class="infra-grid">${transit.map((x) => `
+      <div class="infra"><div class="if-k">${esc(x.k)}</div>
+        <div class="if-v">${x.v}<span>곳</span></div><div class="if-s">${esc(x.s)}</div></div>`).join("")}</div>
+    <div class="infra-sub">앵커 · 집객시설</div>
+    <div class="anchor-grid">${anchors.map((x) => `
+      <div class="anchor ${x.v > 0 ? "has" : ""}"><span class="an-k">${esc(x.k)}</span><span class="an-v">${x.v}</span></div>`).join("")}</div>
+    <div class="risk-note">모델의 '유동인구·배후수요' 지수를 실제 교통·집객 시설(OpenStreetMap)로 교차검증하는 참고 지표입니다.</div>`;
 }
 
 /* ---------------- 예산 추천 ---------------- */
@@ -752,6 +877,10 @@ function shareLink() {
   } else { toast(url); }
 }
 function exportPDF() {
+  if (!isPaid()) { openCheckout("pdf"); return; }   // 리포트 포함 저장은 결제 후
+  doPrint();
+}
+function doPrint() {
   document.querySelectorAll("#tab-panels .tabpane").forEach((p) => p.classList.remove("is-hidden"));  // 인쇄용 전체 표시
   if (state.chart) state.chart.resize();
   const restore = () => { showTab(state.tab); window.removeEventListener("afterprint", restore); };
@@ -846,6 +975,10 @@ $("budget-btn").onclick = openBudget;
 $("budget-close").onclick = closeBudget;
 $("bf-run").onclick = runRecommend;
 $("budget-modal").addEventListener("click", (e) => { if (e.target === $("budget-modal")) closeBudget(); });
+$("pay-close").onclick = closePay;
+$("pay-run").onclick = payNow;
+document.querySelectorAll("#pay-methods .pm").forEach((b) => { b.onclick = () => setPayMethod(b.dataset.m); });
+$("pay-modal").addEventListener("click", (e) => { if (e.target === $("pay-modal")) closePay(); });
 $("search").addEventListener("keydown", (e) => { if (e.key === "Enter") doSearch(); });
 $("whatif-btn").onclick = askWhatIf;
 $("whatif-input").addEventListener("keydown", (e) => { if (e.key === "Enter") askWhatIf(); });
