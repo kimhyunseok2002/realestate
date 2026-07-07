@@ -42,7 +42,7 @@ const state = {
   scope: "전체", regionOf: {}, ovLabel: "",
   listingsOn: false, listingLayer: null, listingMarkers: {}, listingsGu: null,
   tab: "summary", fitFor: null, infraFor: null, _toastT: null,
-  horizon: 3, _simT: null,
+  horizon: 3, _simT: null, _simSeq: 0,
   storesOn: false, storesLayer: null, storesMarkers: [], storesKey: null,
   paid: {}, payKey: null, payThen: "view", reportText: "", reportSrc: "",
   deepReport: null, reportInputs: null,
@@ -72,6 +72,15 @@ function staggerReveal(container) {
     el.classList.remove("reveal"); void el.offsetWidth;
     el.style.animationDelay = REDUCE_MOTION ? "0ms" : `${i * 55}ms`;
     el.classList.add("reveal");
+  });
+}
+/* 게이지 막대: width 0 → 목표치로 자라나는 전환 (숨김 탭은 보일 때 재생) */
+function playBars(root) {
+  (root || document).querySelectorAll("[data-w]").forEach((el) => {
+    if (!el.offsetParent) return;
+    const w = el.dataset.w;
+    delete el.dataset.w;
+    requestAnimationFrame(() => { el.style.width = w + "%"; });
   });
 }
 /* 지도 클릭 → 결과 영역으로 살짝 스크롤 */
@@ -144,11 +153,28 @@ function buildRegionChips() {
   if (state.loc && state.loc.gu) highlightRegionChip(state.loc.gu);
 }
 
+/* 세그먼트 컨트롤: 활성 배경이 옆으로 미끄러지는 인디케이터 */
+function segInd(container, activeSel) {
+  if (!container) return;
+  let ind = container.querySelector(".seg-ind");
+  if (!ind) { ind = document.createElement("span"); ind.className = "seg-ind"; ind.setAttribute("aria-hidden", "true"); container.prepend(ind); }
+  const act = container.querySelector(activeSel);
+  if (!act) return;
+  ind.style.width = `${act.offsetWidth}px`;
+  ind.style.height = `${act.offsetHeight}px`;
+  ind.style.transform = `translate(${act.offsetLeft}px, ${act.offsetTop}px)`;
+}
+function refreshSegInds() {
+  segInd($("region-scope"), ".scope-btn.active");
+  segInd($("ml-horizon"), ".mh.active");
+}
+
 /* 지역 범위(전체/서울/경기) 전환 */
 function setScope(scope) {
   state.scope = scope;
   document.querySelectorAll("#region-scope .scope-btn").forEach((b) =>
     b.classList.toggle("active", b.dataset.scope === scope));
+  segInd($("region-scope"), ".scope-btn.active");
   buildRegionChips();
   if (state.overview) renderBubbles(state.overview, state.ovLabel);
   fitScopeBounds();
@@ -164,14 +190,25 @@ function fitScopeBounds() {
   });
 }
 function highlightRegionChip(gu) {
-  document.querySelectorAll("#region-chips .mchip").forEach((c) =>
-    c.classList.toggle("active", c.dataset.gu === gu));
+  let act = null;
+  document.querySelectorAll("#region-chips .mchip").forEach((c) => {
+    const on = c.dataset.gu === gu;
+    c.classList.toggle("active", on);
+    if (on) act = c;
+  });
+  // 활성 칩이 가로 스크롤 밖에 있으면 보이게 — 지도↔칩 동기화가 눈에 보이도록
+  if (act) act.scrollIntoView({ behavior: REDUCE_MOTION ? "auto" : "smooth", inline: "center", block: "nearest" });
 }
 
 async function selectIndustry(key) {
   state.industry = key;
-  document.querySelectorAll("#map-industry-chips .mchip").forEach((c) =>
-    c.classList.toggle("active", c.dataset.key === key));
+  let act = null;
+  document.querySelectorAll("#map-industry-chips .mchip").forEach((c) => {
+    const on = c.dataset.key === key;
+    c.classList.toggle("active", on);
+    if (on) act = c;
+  });
+  if (act) act.scrollIntoView({ behavior: REDUCE_MOTION ? "auto" : "smooth", inline: "center", block: "nearest" });
   updateLegendTitle();
   await loadOverview(key);
   if (state.loc) predict();                     // 업종 바꾸면 현재 위치 재분석
@@ -192,7 +229,7 @@ function initMap() {
   L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
     maxZoom: 19, subdomains: "abcd", attribution: "© OpenStreetMap © CARTO",
   }).addTo(map);
-  map.on("click", (e) => setLocation(e.latlng.lat, e.latlng.lng, { reveal: true }));
+  map.on("click", (e) => { clearGeo(); setLocation(e.latlng.lat, e.latlng.lng, { reveal: true }); });
   state.bubbleLayer = L.layerGroup().addTo(map);
   state.listingLayer = L.layerGroup().addTo(map);
   state.storesLayer = L.layerGroup().addTo(map);
@@ -208,22 +245,45 @@ async function loadOverview(industry) {
 }
 
 function renderBubbles(list, label) {
-  state.bubbleLayer.clearLayers();
-  state.bubbleMarkers = {};
+  // 전체 재생성 대신 diff 업데이트 — 기간/업종/범위 전환 시 지도가 깜빡이지 않음
   state.ovLabel = label;
+  const seen = new Set();
+  let n = 0;
   list.forEach((d) => {
     if (state.scope !== "전체" && state.regionOf[d.gu] !== state.scope) return;
     const val = d["y" + state.horizon];
     const band = bandFor(val);
-    const html = `<div class="bubble ${band}">
-      <div class="tag"><span class="gu">${shortGu(d.gu)}</span>${val}%</div>
+    const tagHtml = `<span class="gu">${shortGu(d.gu)}</span>${val}%`;
+    const tip = `${d.gu} · ${label} ${state.horizon}년 ${val}%`;
+    seen.add(d.gu);
+    const ex = state.bubbleMarkers[d.gu];
+    if (ex && ex._icon) {
+      const b = ex._icon.querySelector(".bubble");
+      if (b) {
+        b.classList.remove("good", "warning", "serious", "critical");
+        b.classList.add(band);
+        const tag = b.querySelector(".tag");
+        if (tag && tag.innerHTML !== tagHtml) {
+          tag.innerHTML = tagHtml;                     // 값이 바뀐 버블만 살짝 튀는 펄스
+          if (!REDUCE_MOTION) { tag.classList.remove("tick"); void tag.offsetWidth; tag.classList.add("tick"); }
+        }
+        ex.setTooltipContent(tip);
+        return;
+      }
+    }
+    const delay = REDUCE_MOTION ? 0 : (n++ % 10) * 26;    // 물결치듯 순차 등장
+    const html = `<div class="bubble ${band}" style="animation-delay:${delay}ms">
+      <div class="tag">${tagHtml}</div>
       <div class="tail"></div></div>`;
     const icon = L.divIcon({ html, className: "bubble-wrap", iconSize: [1, 1], iconAnchor: [0, 0] });
     const m = L.marker([d.lat, d.lon], { icon, riseOnHover: true })
-      .bindTooltip(`${d.gu} · ${label} ${state.horizon}년 ${val}%`, { direction: "top", offset: [0, -14] })
+      .bindTooltip(tip, { direction: "top", offset: [0, -14] })
       .on("click", () => selectGu(d.gu));
     m.addTo(state.bubbleLayer);
     state.bubbleMarkers[d.gu] = m;
+  });
+  Object.keys(state.bubbleMarkers).forEach((gu) => {      // 범위 밖 마커만 제거
+    if (!seen.has(gu)) { state.bubbleLayer.removeLayer(state.bubbleMarkers[gu]); delete state.bubbleMarkers[gu]; }
   });
   if (state.loc && state.loc.gu) highlightBubble(state.loc.gu);
 }
@@ -241,6 +301,7 @@ function updateLegendTitle() {
 function setHorizon(h) {
   state.horizon = h;
   document.querySelectorAll("#ml-horizon .mh").forEach((b) => b.classList.toggle("active", Number(b.dataset.h) === h));
+  segInd($("ml-horizon"), ".mh.active");
   updateLegendTitle();
   if (state.overview) renderBubbles(state.overview, state.ovLabel);
 }
@@ -266,8 +327,11 @@ async function selectGu(gu) {
 
 async function setLocation(lat, lon, { gu, address, skipReverse, fly, zoom, reveal } = {}) {
   placePin(lat, lon);
-  if (fly) state.map.setView([lat, lon], zoom || state.map.getZoom(), { animate: !REDUCE_MOTION });
-  $("geo-results").innerHTML = "";
+  if (fly) {
+    const z = zoom || state.map.getZoom();
+    if (REDUCE_MOTION) state.map.setView([lat, lon], z, { animate: false });
+    else state.map.flyTo([lat, lon], z, { duration: 0.7, easeLinearity: 0.22 });
+  }
 
   if (skipReverse && gu) {
     state.loc = { lat, lon, gu, address: address || `${regionLabel(gu)} ${gu}`, snapped: false, in_support: true };
@@ -291,7 +355,9 @@ async function setLocation(lat, lon, { gu, address, skipReverse, fly, zoom, reve
 }
 
 function renderLocCard(loading) {
-  $("loc-card").classList.remove("hidden");
+  const card = $("loc-card");
+  card.classList.remove("hidden");
+  if (!loading && !REDUCE_MOTION) { card.classList.remove("flash"); void card.offsetWidth; card.classList.add("flash"); }
   $("loc-gu-text").textContent = state.loc.gu ? `${regionLabel(state.loc.gu)} ${state.loc.gu}` : "위치 확인 중…";
   $("loc-addr").textContent = state.loc.address;
   $("loc-meta").textContent = `${state.loc.lat.toFixed(5)}, ${state.loc.lon.toFixed(5)}`;
@@ -302,26 +368,59 @@ function renderLocCard(loading) {
   } else sn.classList.add("hidden");
 }
 
-/* ---------------- search ---------------- */
+/* ---------------- search (라이브 검색 + 키보드 탐색) ---------------- */
+let searchSeq = 0, searchT = null, searchSel = -1;
+async function fetchGeo(q, { quiet } = {}) {
+  const seq = ++searchSeq;
+  const box = $("geo-results");
+  if (!quiet) box.innerHTML = `<div class="geo-item"><span class="loading"><span class="spinner"></span> 검색 중…</span></div>`;
+  try {
+    const res = await api(`/api/geocode?q=${encodeURIComponent(q)}`);
+    return seq === searchSeq ? res.results : null;      // 최신 검색만 반영
+  } catch (e) {
+    if (seq === searchSeq && !quiet) box.innerHTML = `<div class="err">${ICONS.warn}<span>${esc(e.message)}</span></div>`;
+    return null;
+  }
+}
+function renderGeo(results) {
+  const box = $("geo-results");
+  box.innerHTML = "";
+  searchSel = -1;
+  if (!results) return;
+  if (!results.length) { box.innerHTML = `<div class="geo-item g-addr">검색 결과가 없습니다.</div>`; return; }
+  results.slice(0, 5).forEach((r, i) => {
+    const el = document.createElement("button");
+    el.type = "button"; el.className = "geo-item pop-in";
+    el.style.animationDelay = REDUCE_MOTION ? "0ms" : `${i * 38}ms`;
+    el.innerHTML = `<div class="g-name">${esc(r.name)}</div><div class="g-addr">${esc(r.display_name)}</div>`;
+    el.onclick = () => { $("search").value = r.name; clearGeo(); setLocation(r.lat, r.lon, { fly: true, zoom: 15, reveal: true }); };
+    box.appendChild(el);
+  });
+}
+function clearGeo() { $("geo-results").innerHTML = ""; searchSel = -1; searchSeq++; clearTimeout(searchT); }
 async function doSearch() {
   const q = $("search").value.trim();
   if (!q) return;
-  const box = $("geo-results");
-  box.innerHTML = `<div class="geo-item"><span class="loading"><span class="spinner"></span> 검색 중…</span></div>`;
-  try {
-    const res = await api(`/api/geocode?q=${encodeURIComponent(q)}`);
-    box.innerHTML = "";
-    if (!res.results.length) { box.innerHTML = `<div class="geo-item g-addr">검색 결과가 없습니다.</div>`; return; }
-    res.results.slice(0, 5).forEach((r) => {
-      const el = document.createElement("button");
-      el.type = "button"; el.className = "geo-item";
-      el.innerHTML = `<div class="g-name">${esc(r.name)}</div><div class="g-addr">${esc(r.display_name)}</div>`;
-      el.onclick = () => { $("search").value = r.name; box.innerHTML = ""; setLocation(r.lat, r.lon, { fly: true, zoom: 15, reveal: true }); };
-      box.appendChild(el);
-    });
-    const f = res.results[0];                 // 검색 즉시 첫 결과로 지도 이동
-    setLocation(f.lat, f.lon, { fly: true, zoom: 15, reveal: true });
-  } catch (e) { box.innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+  clearTimeout(searchT);
+  const results = await fetchGeo(q);
+  if (!results) return;
+  renderGeo(results);                          // 목록은 유지 — 다른 후보로 바꿔 고를 수 있게
+  if (results.length) setLocation(results[0].lat, results[0].lon, { fly: true, zoom: 15, reveal: true });
+}
+function liveSearch() {
+  const q = $("search").value.trim();
+  clearTimeout(searchT);
+  if (q.length < 2) { clearGeo(); return; }
+  searchT = setTimeout(async () => {
+    const results = await fetchGeo(q, { quiet: true });
+    if (results) renderGeo(results);
+  }, 350);
+}
+function moveGeoSel(dir) {
+  const items = Array.from(document.querySelectorAll("#geo-results .geo-item"));
+  if (!items.length) return;
+  searchSel = (searchSel + dir + items.length) % items.length;
+  items.forEach((el, i) => el.classList.toggle("sel", i === searchSel));
 }
 
 /* ---------------- predict ---------------- */
@@ -355,6 +454,7 @@ function renderResults(p, reveal) {
   $("placeholder").classList.add("hidden");
   $("listing-card").classList.add("hidden");   // 일반 예측에선 매물 카드 숨김
   const body = $("result-body");
+  const first = body.classList.contains("hidden");   // 최초 공개 여부
   body.classList.remove("hidden");
 
   $("result-title").innerHTML = `<span>${regionLabel(p.input.gu)} ${esc(p.input.gu)}</span><span class="rt-sep">·</span><span class="rt-ind">${esc(p.input.industry_label)}</span>`;
@@ -389,8 +489,12 @@ function renderResults(p, reveal) {
   state.infraFor = null;
   state.deepReport = null;
   state.reportInputs = null;
-  showTab("summary");
-  staggerReveal(body);
+  if (first) {
+    showTab("summary");
+    staggerReveal(body);                       // 스태거는 최초 공개에만 — 갱신 때 출렁임 방지
+  } else {
+    showTab(state.tab);                        // 보던 탭 유지 (탭별 데이터는 캐시키로 자동 재로드)
+  }
   if (reveal) requestAnimationFrame(scrollToResults);
 }
 
@@ -421,33 +525,45 @@ function renderChart(p) {
   const months = p.curve.map((c) => c.month);
   const s = p.curve.map((c) => c.s), lo = p.curve.map((c) => c.lo), hi = p.curve.map((c) => c.hi);
   const km = resampleKM(p.km.points);
-  const data = { labels: months, datasets: [
-    { label: "hi", data: hi, borderColor: "transparent", pointRadius: 0, fill: false, tension: 0.25 },
-    { label: "lo", data: lo, borderColor: "transparent", pointRadius: 0, fill: "-1", backgroundColor: COLORS.s1soft, tension: 0.25 },
-    { label: "예측 생존곡선", _main: true, data: s, borderColor: COLORS.s1, borderWidth: 2, pointRadius: 0, fill: false, tension: 0.25 },
-    { label: "실측 KM", data: km, borderColor: COLORS.s2, borderWidth: 1.75, borderDash: [5, 4], pointRadius: 0, fill: false, stepped: true },
-  ] };
-  const opts = {
-    responsive: true, maintainAspectRatio: false, animation: REDUCE_MOTION ? false : undefined,
-    interaction: { mode: "index", intersect: false },
-    plugins: { legend: { display: false }, tooltip: {
-      backgroundColor: "#191f28", padding: 10, cornerRadius: 8, titleFont: { family: "Fira Code" }, bodyFont: { family: "Fira Sans" },
-      filter: (item) => item.dataset._main === true,
-      callbacks: {
-        title: (items) => { const m = Number(items[0].label); return `${m}개월${m % 12 === 0 && m > 0 ? ` (${m / 12}년)` : ""}`; },
-        label: (item) => { const i = item.dataIndex; return [`예측 생존율: ${s[i].toFixed(1)}%`, `95% 신뢰구간: ${lo[i].toFixed(1)}–${hi[i].toFixed(1)}%`, `실측 KM: ${km[i].toFixed(1)}%`]; },
+  state._chartData = { s, lo, hi, km };                    // 툴팁 콜백이 최신 데이터를 참조
+  if (state.chart) {
+    // destroy→재생성 대신 데이터만 갱신 — 이전 곡선에서 새 곡선으로 morph 전환
+    const c = state.chart;
+    c.data.labels = months;
+    c.data.datasets[0].data = hi;
+    c.data.datasets[1].data = lo;
+    c.data.datasets[2].data = s;
+    c.data.datasets[3].data = km;
+    c.update(REDUCE_MOTION ? "none" : undefined);
+  } else {
+    const data = { labels: months, datasets: [
+      { label: "hi", data: hi, borderColor: "transparent", pointRadius: 0, fill: false, tension: 0.25 },
+      { label: "lo", data: lo, borderColor: "transparent", pointRadius: 0, fill: "-1", backgroundColor: COLORS.s1soft, tension: 0.25 },
+      { label: "예측 생존곡선", _main: true, data: s, borderColor: COLORS.s1, borderWidth: 2, pointRadius: 0, fill: false, tension: 0.25 },
+      { label: "실측 KM", data: km, borderColor: COLORS.s2, borderWidth: 1.75, borderDash: [5, 4], pointRadius: 0, fill: false, stepped: true },
+    ] };
+    const opts = {
+      responsive: true, maintainAspectRatio: false, animation: REDUCE_MOTION ? false : undefined,
+      interaction: { mode: "index", intersect: false },
+      plugins: { legend: { display: false }, tooltip: {
+        backgroundColor: "#191f28", padding: 10, cornerRadius: 8, titleFont: { family: "Fira Code" }, bodyFont: { family: "Fira Sans" },
+        filter: (item) => item.dataset._main === true,
+        callbacks: {
+          title: (items) => { const m = Number(items[0].label); return `${m}개월${m % 12 === 0 && m > 0 ? ` (${m / 12}년)` : ""}`; },
+          label: (item) => { const i = item.dataIndex, D = state._chartData;
+            return [`예측 생존율: ${D.s[i].toFixed(1)}%`, `95% 신뢰구간: ${D.lo[i].toFixed(1)}–${D.hi[i].toFixed(1)}%`, `실측 KM: ${D.km[i].toFixed(1)}%`]; },
+        },
+      } },
+      scales: {
+        x: { grid: { color: COLORS.grid, drawTicks: false }, border: { color: "#c8d4d2" },
+          ticks: { color: COLORS.muted, maxRotation: 0, autoSkip: false, font: { family: "Fira Code", size: 10 },
+            callback: (val, idx) => (idx === 0 ? "0" : idx % 12 === 0 ? `${idx / 12}년` : "") } },
+        y: { min: 0, max: 100, grid: { color: COLORS.grid, drawTicks: false }, border: { display: false },
+          ticks: { color: COLORS.muted, callback: (v) => `${v}%`, stepSize: 25, font: { family: "Fira Code", size: 10 } } },
       },
-    } },
-    scales: {
-      x: { grid: { color: COLORS.grid, drawTicks: false }, border: { color: "#c8d4d2" },
-        ticks: { color: COLORS.muted, maxRotation: 0, autoSkip: false, font: { family: "Fira Code", size: 10 },
-          callback: (val, idx) => (idx === 0 ? "0" : idx % 12 === 0 ? `${idx / 12}년` : "") } },
-      y: { min: 0, max: 100, grid: { color: COLORS.grid, drawTicks: false }, border: { display: false },
-        ticks: { color: COLORS.muted, callback: (v) => `${v}%`, stepSize: 25, font: { family: "Fira Code", size: 10 } } },
-    },
-  };
-  if (state.chart) state.chart.destroy();
-  state.chart = new Chart($("survival-chart"), { type: "line", data, options: opts, plugins: [horizonLabelPlugin] });
+    };
+    state.chart = new Chart($("survival-chart"), { type: "line", data, options: opts, plugins: [horizonLabelPlugin] });
+  }
   $("chart-legend").innerHTML = `
     <span class="lg"><span class="sw" style="background:${COLORS.s1}"></span>예측 생존곡선</span>
     <span class="lg"><span class="sw band" style="background:${COLORS.s1}"></span>95% 신뢰구간</span>
@@ -459,11 +575,12 @@ function renderRisks(p) {
   const maxAbs = Math.max(1, ...p.risks.map((r) => Math.abs(r.effect_pp)));
   $("risk-list").innerHTML = p.risks.map((r) => {
     const w = (Math.abs(r.effect_pp) / maxAbs) * 50, pos = r.effect_pp >= 0;
-    const fill = `<div class="risk-fill ${pos ? "pos" : "neg"}" style="width:${w}%"></div>`;
+    const fill = `<div class="risk-fill ${pos ? "pos" : "neg"}" style="width:0" data-w="${w}"></div>`;
     return `<div class="risk-row" title="${esc(r.desc)}"><div class="r-label">${esc(r.label)}</div>
       <div class="risk-track"><div class="center"></div>${fill}</div>
       <div class="r-val" style="color:${pos ? "var(--pos)" : "var(--neg)"}">${r.effect_pp > 0 ? "+" : ""}${r.effect_pp}%p</div></div>`;
   }).join("");
+  playBars($("risk-list"));
   $("risk-note").textContent = p.risk_note || "";
 }
 function renderSimilar(p) {
@@ -472,8 +589,9 @@ function renderSimilar(p) {
   const maxv = Math.max(100, ...rows.map((r) => r.v));
   $("sim-list").innerHTML = rows.map((r) => `
     <div class="sim-row"><div class="s-name ${r.me ? "me" : ""}">${esc(r.gu)}</div>
-      <div class="sim-bar-track"><div class="sim-bar ${r.me ? "me" : ""}" style="width:${(r.v / maxv) * 100}%"></div></div>
+      <div class="sim-bar-track"><div class="sim-bar ${r.me ? "me" : ""}" style="width:0" data-w="${(r.v / maxv) * 100}"></div></div>
       <div class="s-pct">${r.v}%</div></div>`).join("");
+  playBars($("sim-list"));
   $("sim-note").innerHTML = `<span class="ico">${ICONS.info}</span><span>위험 프로파일이 가장 비슷한 지역 · 수도권 동일업종 평균 3년 ${p.seoul_avg_3y}%</span>`;
 }
 function renderFeatures(p) {
@@ -501,14 +619,18 @@ function toggleListings() {
   else clearListings();
 }
 async function loadListings() {
+  if (!state.listingsOn) return;
   const gu = state.loc && state.loc.gu;
-  if (!state.listingsOn || !gu) { clearListings(); return; }
+  if (!gu) { clearListings(); toast("먼저 지도에서 위치를 선택하세요"); return; }
+  const btn = $("listing-toggle"); btn.classList.add("loading-b");
   try {
     const r = await api(`/api/listings?gu=${encodeURIComponent(gu)}`);
     if (!state.listingsOn) return;
     state.listingsGu = gu;
     renderListings(r.listings);
-  } catch (e) { clearListings(); }
+    if (!r.listings.length) toast("이 지역에 등록된 매물이 없어요");
+  } catch (e) { clearListings(); toast("매물을 불러오지 못했어요 — 다시 시도해 주세요"); }
+  finally { btn.classList.remove("loading-b"); }
 }
 function renderListings(list) {
   state.listingLayer.clearLayers();
@@ -537,11 +659,12 @@ async function openListing(lid) {
     if (seq !== state.predictSeq) return;
     const l = r.listing;
     placePin(l.lat, l.lon);
-    if (!REDUCE_MOTION) state.map.setView([l.lat, l.lon], Math.max(state.map.getZoom(), 14), { animate: true });
+    if (!REDUCE_MOTION) state.map.flyTo([l.lat, l.lon], Math.max(state.map.getZoom(), 14), { duration: 0.6, easeLinearity: 0.22 });
     state.loc = { lat: l.lat, lon: l.lon, gu: l.gu, address: l.title, snapped: false, in_support: true };
     renderLocCard(false);
     state.lastPred = r.prediction;
     renderResults(r.prediction, true);          // 결과 렌더(매물 카드는 숨겨짐)
+    showTab("summary");                          // 매물 분석 카드는 요약 탭에 뜸
     renderListingCard(l, r.analysis);            // 그 위에 매물 분석 카드 표시
     state.reportInputs = { area: l.area_pyeong, rent: l.rent_manwon, deposit: l.deposit_manwon, premium: l.premium_manwon, capital: 0, target: 0 };
     highlightBubble(l.gu); highlightRegionChip(l.gu);
@@ -578,10 +701,11 @@ function renderListingCard(l, a) {
     <div class="lc-afford">
       <div class="lc-af-row"><span>예상 월매출</span><b>${won(a.expected_sales_manwon)}만원</b></div>
       <div class="lc-af-row"><span>고정비 (월세+관리비)</span><b>${won(a.monthly_fixed_manwon)}만원</b></div>
-      <div class="lc-af-bar"><div class="lc-af-fill f-${a.band}" style="width:${Math.min(100, a.rent_to_sales_pct)}%"></div><span class="lc-af-pct">${a.rent_to_sales_pct}%</span></div>
+      <div class="lc-af-bar"><div class="lc-af-fill f-${a.band}" style="width:0" data-w="${Math.min(100, a.rent_to_sales_pct)}"></div><span class="lc-af-pct">${a.rent_to_sales_pct}%</span></div>
       <div class="lc-note">${esc(a.note)}</div>
     </div>`;
   box.classList.remove("hidden");
+  playBars(box);
 }
 
 /* ---------------- LLM report ---------------- */
@@ -646,6 +770,9 @@ function renderReportGated() {
       };
       loadDeepReport();
     };
+    $("dr-inputs").addEventListener("keydown", (e) => {    // Enter로 바로 재계산
+      if (e.key === "Enter" && e.target.tagName === "INPUT") $("dr-run").click();
+    });
     loadDeepReport();
   } else {
     srcEl.innerHTML = `<span class="src-badge src-lock">${LOCK_SVG} 유료</span>`;
@@ -870,6 +997,7 @@ function renderDeep(r) {
   </div>`;
 
   $("dr-body").innerHTML = html;
+  staggerReveal($("dr-body"));                              // 섹션 순차 등장
   $("report-txt").onclick = downloadReportTxt;
   $("report-pdf2").onclick = exportPDF;
   document.querySelectorAll("#dr-body .alt-row[data-lid]").forEach((el) => {
@@ -886,9 +1014,9 @@ function openCheckout(then) {
   const p = state.lastPred.input;
   $("pay-item").textContent = `${regionLabel(p.gu)} ${p.gu} · ${p.industry_label} 생존 리포트`;
   setPayMethod("card");
-  $("pay-modal").classList.remove("hidden");
+  openModal("pay-modal");
 }
-function closePay() { $("pay-modal").classList.add("hidden"); }
+function closePay() { closeModal("pay-modal"); }
 function setPayMethod(m) {
   document.querySelectorAll("#pay-methods .pm").forEach((b) => b.classList.toggle("active", b.dataset.m === m));
   $("pay-card").classList.toggle("hidden", m !== "card");
@@ -924,6 +1052,7 @@ function resetWhatIf() {
 }
 async function askWhatIf() {
   const q = $("whatif-input").value.trim(); if (!q) return;
+  if (!busyBtn($("whatif-btn"), true, "")) return;         // 중복 질문 방지
   const p = state.lastPred, ans = $("whatif-answer");
   ans.classList.remove("hidden");
   ans.innerHTML = `<span class="loading"><span class="spinner"></span> 시나리오 재계산 + 설명 생성 중…</span>`;
@@ -942,33 +1071,53 @@ async function askWhatIf() {
     const badge = r.source === "claude" ? `<span class="src-badge src-claude" style="margin-top:8px">${ICONS.spark} Claude</span>` : `<span class="src-badge src-template" style="margin-top:8px">템플릿</span>`;
     ans.innerHTML = head + `<div>${esc(r.text)}</div><div style="margin-top:8px">${badge}</div>`;
   } catch (e) { ans.innerHTML = `<div class="err">${ICONS.warn}<span>${esc(e.message)}</span></div>`; }
+  finally { busyBtn($("whatif-btn"), false); }
 }
 
+/* ---------------- 모달 공통 (열림/닫힘 애니메이션 + 포커스 관리) ---------------- */
+let modalLastFocus = null;
+function openModal(id) {
+  modalLastFocus = document.activeElement;
+  const ov = $(id);
+  ov.classList.remove("hidden", "closing");
+  const c = ov.querySelector(".modal-close");
+  if (c) c.focus();
+}
+function closeModal(id) {
+  const ov = $(id);
+  if (ov.classList.contains("hidden") || ov.classList.contains("closing")) return;
+  if (REDUCE_MOTION) { ov.classList.add("hidden"); }
+  else {
+    ov.classList.add("closing");
+    setTimeout(() => { ov.classList.add("hidden"); ov.classList.remove("closing"); }, 190);
+  }
+  if (modalLastFocus && modalLastFocus.focus) modalLastFocus.focus();
+}
+/* 모든 모달: Tab 포커스 트랩 */
+document.querySelectorAll(".modal-overlay").forEach((ov) => {
+  ov.addEventListener("keydown", (e) => {
+    if (e.key !== "Tab") return;
+    const f = Array.from(ov.querySelectorAll('button, [href], input, select, [tabindex]:not([tabindex="-1"])'))
+      .filter((el) => el.offsetParent !== null && !el.disabled);
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+});
+
 /* ---------------- 소개 모달 ---------------- */
-let aboutLastFocus = null;
 function openAbout() {
-  aboutLastFocus = document.activeElement;
-  $("about-modal").classList.remove("hidden");
+  openModal("about-modal");
   $("about-btn").setAttribute("aria-expanded", "true");
-  $("about-close").focus();
 }
 function closeAbout() {
-  if ($("about-modal").classList.contains("hidden")) return;
-  $("about-modal").classList.add("hidden");
+  closeModal("about-modal");
   $("about-btn").setAttribute("aria-expanded", "false");
-  if (aboutLastFocus && aboutLastFocus.focus) aboutLastFocus.focus();
 }
 $("about-btn").onclick = openAbout;
 $("about-close").onclick = closeAbout;
 $("about-modal").addEventListener("click", (e) => { if (e.target === $("about-modal")) closeAbout(); });
-$("about-modal").addEventListener("keydown", (e) => {   // Tab 포커스 트랩
-  if (e.key !== "Tab") return;
-  const f = $("about-modal").querySelectorAll('button, [href], input, [tabindex]:not([tabindex="-1"])');
-  if (!f.length) return;
-  const first = f[0], last = f[f.length - 1];
-  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-});
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeAbout(); closeBudget(); closePay(); closeAuth(); closePlans(); closeAccount(); } });
 
 /* ---------------- 분석창 접기/펼치기 ---------------- */
@@ -980,27 +1129,58 @@ function togglePanel() {
 }
 
 /* ---------------- 탭 메뉴 ---------------- */
+function moveTabIndicator() {
+  const bar = $("tabbar");
+  let ind = bar.querySelector(".tab-ind");
+  if (!ind) { ind = document.createElement("span"); ind.className = "tab-ind"; ind.setAttribute("aria-hidden", "true"); bar.prepend(ind); }
+  const act = bar.querySelector(".tab.active");
+  if (!act) return;
+  ind.style.width = `${act.offsetWidth}px`;
+  ind.style.transform = `translateX(${act.offsetLeft}px)`;
+}
 function showTab(name) {
   state.tab = name;
-  document.querySelectorAll("#tabbar .tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
+  document.querySelectorAll("#tabbar .tab").forEach((t) => {
+    const on = t.dataset.tab === name;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-selected", on ? "true" : "false");
+  });
   document.querySelectorAll("#tab-panels .tabpane").forEach((p) => p.classList.toggle("is-hidden", p.dataset.pane !== name));
+  moveTabIndicator();
+  // 탭바가 화면 위로 밀려나 있으면 새 탭 내용이 보이도록 살짝 스크롤 보정
+  const pb = $("panel-body"), tb = $("tabbar");
+  if (pb && tb) {
+    const off = tb.getBoundingClientRect().top - pb.getBoundingClientRect().top;
+    if (off < 0) pb.scrollTo({ top: pb.scrollTop + off - 10, behavior: REDUCE_MOTION ? "auto" : "smooth" });
+  }
+  const pane = document.querySelector(`#tab-panels .tabpane[data-pane="${name}"]`);
+  if (pane) playBars(pane);                     // 숨겨져 있던 게이지 막대 재생
   if (name === "curve" && state.chart) requestAnimationFrame(() => state.chart.resize());
   if (name === "fit") loadFit();
   if (name === "risk") loadInfra();
 }
 
+/* 스켈레톤 로딩 (스피너 대신 콘텐츠 자리 잡기) */
+const skel = (n, h) => Array.from({ length: n }, (_, i) =>
+  `<div class="skel" style="height:${h}px;animation-delay:${i * 90}ms"></div>`).join("");
+
 /* ---------------- 업종추천 (이 자리에 뭐가 맞나) ---------------- */
+function fitKey() { return state.loc ? `${state.loc.gu}:${state.loc.lat}:${state.loc.lon}` : null; }
 async function loadFit() {
   if (!state.loc || !state.loc.gu) return;
-  const key = `${state.loc.gu}:${state.loc.lat}:${state.loc.lon}`;
+  const key = fitKey();
   if (state.fitFor === key) return;                       // 현재 지점 이미 계산됨
   const box = $("fit-list");
-  box.innerHTML = `<div class="loading"><span class="spinner"></span> 업종별 생존율 계산 중…</div>`;
+  box.innerHTML = skel(6, 42);
   try {
     const r = await api(`/api/industry_fit?gu=${encodeURIComponent(state.loc.gu)}&lat=${state.loc.lat}&lon=${state.loc.lon}`);
+    if (fitKey() !== key) return;                          // 응답 오기 전에 위치가 바뀜
     state.fitFor = key;
     renderFit(r.industries);
-  } catch (e) { box.innerHTML = `<div class="err">${ICONS.warn}<span>${esc(e.message)}</span></div>`; }
+  } catch (e) {
+    box.innerHTML = `<div class="err">${ICONS.warn}<span>${esc(e.message)}</span><button type="button" class="ract" id="fit-retry">다시 시도</button></div>`;
+    const rb = $("fit-retry"); if (rb) rb.onclick = () => { state.fitFor = null; loadFit(); };
+  }
 }
 function renderFit(list) {
   const cur = state.industry;
@@ -1009,30 +1189,41 @@ function renderFit(list) {
     <button type="button" class="fit-row ${r.industry === cur ? "me" : ""}" data-key="${r.industry}">
       <span class="fit-rank">${i + 1}</span>
       <span class="fit-name">${esc(r.label)}${r.industry === cur ? ' <em>현재</em>' : ""}</span>
-      <span class="fit-bar-track"><span class="fit-bar" style="width:${(r.y3 / maxv) * 100}%;background:${bandColor(r.band)}"></span></span>
+      <span class="fit-bar-track"><span class="fit-bar" style="width:0;background:${bandColor(r.band)}" data-w="${(r.y3 / maxv) * 100}"></span></span>
       <span class="fit-pct" style="color:${bandColor(r.band)}">${r.y3}%</span>
     </button>`).join("");
+  playBars($("fit-list"));
   document.querySelectorAll("#fit-list .fit-row").forEach((el) => {
     el.onclick = () => selectIndustry(el.dataset.key);
   });
 }
 
 /* ---------------- 입지 인프라 (실측 · OSM) ---------------- */
+function infraKey() { return state.loc ? `${state.loc.lat.toFixed(5)}:${state.loc.lon.toFixed(5)}` : null; }
+function infraRetryBtn() {
+  const rb = $("infra-retry");
+  if (rb) rb.onclick = () => { state.infraFor = null; loadInfra(); };
+}
 async function loadInfra() {
   if (!state.loc) return;
-  const key = `${state.loc.lat.toFixed(5)}:${state.loc.lon.toFixed(5)}`;
+  const key = infraKey();
   if (state.infraFor === key) return;
   const box = $("infra");
-  box.innerHTML = `<div class="loading"><span class="spinner"></span> 주변 교통·집객시설 실측 조회 중…</div>`;
+  box.innerHTML = `<div class="skel-note">OpenStreetMap 실측 조회 중 — 최대 10초 정도 걸릴 수 있어요</div>` + skel(3, 62);
   try {
     const c = await api(`/api/context?lat=${state.loc.lat}&lon=${state.loc.lon}`);
+    if (infraKey() !== key) return;                        // 응답 오기 전에 위치가 바뀜
     state.infraFor = key;
     renderInfra(c);
-  } catch (e) { box.innerHTML = `<div class="err">${ICONS.warn}<span>${esc(e.message)}</span></div>`; }
+  } catch (e) {
+    box.innerHTML = `<div class="err">${ICONS.warn}<span>${esc(e.message)}</span><button type="button" class="ract" id="infra-retry">다시 시도</button></div>`;
+    infraRetryBtn();
+  }
 }
 function renderInfra(c) {
   if (!c || !c.available) {
-    $("infra").innerHTML = `<div class="so-hint">실측 인프라 조회에 실패했어요. 잠시 후 이 탭을 다시 열어보세요.</div>`;
+    $("infra").innerHTML = `<div class="so-hint">실측 인프라 조회에 실패했어요. <button type="button" class="ract" id="infra-retry">다시 시도</button></div>`;
+    infraRetryBtn();
     return;
   }
   const t = c.transit, a = c.anchors;
@@ -1062,20 +1253,22 @@ function openBudget() {
   $("bf-industry").textContent = (state.meta.industries.find((i) => i.key === state.industry) || {}).label || state.industry;
   $("bf-scope").value = state.scope;
   $("rec-list").innerHTML = `<div class="rec-hint">업종 <b>${esc($("bf-industry").textContent)}</b> 기준. 예산을 정하고 <b>추천 받기</b>를 누르세요.</div>`;
-  $("budget-modal").classList.remove("hidden");
+  openModal("budget-modal");
 }
-function closeBudget() { $("budget-modal").classList.add("hidden"); }
+function closeBudget() { closeModal("budget-modal"); }
 async function runRecommend() {
+  if (!busyBtn($("bf-run"), true, "탐색 중…")) return;   // 중복 클릭 방지
   const rent = Math.max(0, parseInt($("bf-rent").value, 10) || 100000);
   const dep = Math.max(0, parseInt($("bf-deposit").value, 10) || 100000000);
   const area = Math.max(0, parseInt($("bf-area").value, 10) || 0);
   const scope = $("bf-scope").value;
   const box = $("rec-list");
-  box.innerHTML = `<div class="loading"><span class="spinner"></span> 예산 안 매물 탐색 중…</div>`;
+  box.innerHTML = skel(5, 56);
   try {
     const r = await api(`/api/recommend?industry=${encodeURIComponent(state.industry)}&scope=${encodeURIComponent(scope)}&max_rent=${rent}&max_deposit=${dep}&min_area=${area}`);
     renderRec(r.results);
   } catch (e) { box.innerHTML = `<div class="err">${ICONS.warn}<span>${esc(e.message)}</span></div>`; }
+  finally { busyBtn($("bf-run"), false); }
 }
 function renderRec(list) {
   state._recList = list;
@@ -1096,6 +1289,21 @@ function renderRec(list) {
   const csvEl = $("rec-csv"); if (csvEl) csvEl.onclick = exportRecCsv;
 }
 
+/* 비동기 버튼 잠금 + 스피너 (중복 클릭 방지) */
+function busyBtn(btn, on, label) {
+  if (!btn) return;
+  if (on) {
+    if (btn.disabled) return false;
+    btn.dataset.orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner" style="border-color:rgba(255,255,255,.45);border-top-color:#fff"></span> ${label || "처리 중…"}`;
+  } else {
+    btn.disabled = false;
+    if (btn.dataset.orig) { btn.innerHTML = btn.dataset.orig; delete btn.dataset.orig; }
+  }
+  return true;
+}
+
 /* ---------------- 공유 · PDF ---------------- */
 function toast(msg) {
   let t = $("toast");
@@ -1104,6 +1312,16 @@ function toast(msg) {
   clearTimeout(state._toastT);
   state._toastT = setTimeout(() => t.classList.remove("show"), 2200);
 }
+function copyText(txt) {
+  if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(txt);
+  return new Promise((res, rej) => {                       // 구형/비보안 컨텍스트 폴백
+    const i = document.createElement("input");
+    i.value = txt; i.style.cssText = "position:fixed;opacity:0";
+    document.body.appendChild(i); i.select();
+    try { document.execCommand("copy") ? res() : rej(new Error("copy 실패")); }
+    catch (e) { rej(e); } finally { i.remove(); }
+  });
+}
 function shareLink() {
   if (!state.loc) return;
   const q = new URLSearchParams();
@@ -1111,9 +1329,15 @@ function shareLink() {
   if (state.industry) q.set("industry", state.industry);
   q.set("lat", state.loc.lat); q.set("lon", state.loc.lon);
   const url = `${location.origin}${location.pathname}?${q.toString()}`;
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(url).then(() => toast("분석 링크가 복사됐어요")).catch(() => toast(url));
-  } else { toast(url); }
+  copyText(url).then(() => {
+    toast("분석 링크가 복사됐어요");
+    const b = $("share-btn");                              // 버튼 자체에도 성공 표시
+    if (b.dataset.orig) return;
+    b.dataset.orig = b.innerHTML;
+    b.classList.add("ok");
+    b.innerHTML = `<svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span>복사됨</span>`;
+    setTimeout(() => { b.innerHTML = b.dataset.orig; delete b.dataset.orig; b.classList.remove("ok"); }, 1400);
+  }).catch(() => window.prompt("아래 링크를 복사하세요 (Ctrl+C)", url));
 }
 function exportPDF() {
   if (!reportUnlocked()) { openCheckout("pdf"); return; }   // 리포트 포함 저장은 결제/구독 후
@@ -1163,6 +1387,13 @@ function clearStores() {
 }
 
 /* ---------------- what-if 시뮬레이터 ---------------- */
+/* 슬라이더 트랙: 중앙(0)→현재값 구간을 브랜드색으로 채움 */
+function paintSlider(el) {
+  const min = +el.min, max = +el.max, v = +el.value;
+  const pct = ((v - min) / (max - min)) * 100;
+  const lo = Math.min(50, pct), hi = Math.max(50, pct);
+  el.style.background = `linear-gradient(90deg,#e9eef4 0%,#e9eef4 ${lo}%,#3182f6 ${lo}%,#3182f6 ${hi}%,#e9eef4 ${hi}%,#e9eef4 100%)`;
+}
 function runSim() {
   if (!state.lastPred) return;
   const rent = parseInt($("sim-rent").value, 10) || 0;
@@ -1171,13 +1402,21 @@ function runSim() {
   $("sim-rent-v").textContent = `${rent > 0 ? "+" : ""}${rent}%`;
   $("sim-foot-v").textContent = `${foot > 0 ? "+" : ""}${foot}%`;
   $("sim-comp-v").textContent = `${comp > 0 ? "+" : ""}${comp}%`;
+  ["sim-rent", "sim-foot", "sim-comp"].forEach((id) => paintSlider($(id)));
   clearTimeout(state._simT);
   state._simT = setTimeout(async () => {
     const p = state.lastPred.input;
+    const seq = ++state._simSeq;                 // 늦게 온 이전 응답이 최신 결과를 덮지 않게
+    const out = $("sim-out"); out.classList.add("pending");
     try {
       const r = await api(`/api/whatif_sim?gu=${encodeURIComponent(p.gu)}&industry=${encodeURIComponent(p.industry)}&lat=${p.lat}&lon=${p.lon}&rent=${rent / 100}&foot=${foot / 100}&comp=${comp / 100}`);
+      if (seq !== state._simSeq) return;
       renderSimOut(r);
-    } catch (e) { /* 무시 */ }
+    } catch (e) {
+      if (seq === state._simSeq) out.innerHTML = `<div class="so-hint">계산에 실패했어요 — 슬라이더를 다시 움직여 보세요.</div>`;
+    } finally {
+      if (seq === state._simSeq) out.classList.remove("pending");
+    }
   }, 180);
 }
 function renderSimOut(r) {
@@ -1193,7 +1432,7 @@ function renderSimOut(r) {
   }).join("");
 }
 function resetSim() {
-  ["sim-rent", "sim-foot", "sim-comp"].forEach((id) => { const el = $(id); if (el) el.value = 0; });
+  ["sim-rent", "sim-foot", "sim-comp"].forEach((id) => { const el = $(id); if (el) { el.value = 0; paintSlider(el); } });
   ["sim-rent-v", "sim-foot-v", "sim-comp-v"].forEach((id) => { const el = $(id); if (el) el.textContent = "0%"; });
   const so = $("sim-out"); if (so) so.innerHTML = `<div class="so-hint">위 3개 슬라이더를 움직이면 생존율이 실시간으로 바뀝니다.</div>`;
 }
@@ -1236,8 +1475,8 @@ function renderAccountBtn() {
 }
 
 /* 회원가입 / 로그인 */
-function openAuth(mode) { setAuthTab(mode || "signup"); setSignupType("personal"); $("li-err").classList.add("hidden"); $("auth-modal").classList.remove("hidden"); }
-function closeAuth() { $("auth-modal").classList.add("hidden"); }
+function openAuth(mode) { setAuthTab(mode || "signup"); setSignupType("personal"); $("li-err").classList.add("hidden"); openModal("auth-modal"); }
+function closeAuth() { closeModal("auth-modal"); }
 function setAuthTab(mode) {
   document.querySelectorAll("#auth-tabs .atab").forEach((t) => t.classList.toggle("active", t.dataset.tab === mode));
   $("signup-pane").classList.toggle("hidden", mode !== "signup");
@@ -1293,13 +1532,13 @@ function openAccountMenu() {
     <div class="ac-btns"><button class="btn" id="ac-plans" type="button">요금제 보기·변경</button><button class="btn ghost" id="ac-logout" type="button">로그아웃</button></div>`;
   $("ac-plans").onclick = () => { closeAccount(); openPlans(); };
   $("ac-logout").onclick = logout;
-  $("account-modal").classList.remove("hidden");
+  openModal("account-modal");
 }
-function closeAccount() { $("account-modal").classList.add("hidden"); }
+function closeAccount() { closeModal("account-modal"); }
 
 /* 요금제 */
-function openPlans() { renderPlans(); $("plans-modal").classList.remove("hidden"); }
-function closePlans() { $("plans-modal").classList.add("hidden"); }
+function openPlans() { renderPlans(); openModal("plans-modal"); }
+function closePlans() { closeModal("plans-modal"); }
 function renderPlans() {
   const cur = state.user ? state.user.plan : null;
   const group = (title, keys) => `
@@ -1369,8 +1608,30 @@ $("plans-close").onclick = closePlans;
 $("plans-modal").addEventListener("click", (e) => { if (e.target === $("plans-modal")) closePlans(); });
 $("account-close").onclick = closeAccount;
 $("account-modal").addEventListener("click", (e) => { if (e.target === $("account-modal")) closeAccount(); });
-$("search").addEventListener("keydown", (e) => { if (e.key === "Enter") doSearch(); });
+$("search").addEventListener("input", liveSearch);
+$("search").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    const sel = document.querySelector("#geo-results .geo-item.sel");
+    if (sel) sel.click(); else doSearch();
+  } else if (e.key === "ArrowDown") { e.preventDefault(); moveGeoSel(1); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); moveGeoSel(-1); }
+  else if (e.key === "Escape") { clearGeo(); e.target.blur(); }
+});
 $("whatif-btn").onclick = askWhatIf;
 $("whatif-input").addEventListener("keydown", (e) => { if (e.key === "Enter") askWhatIf(); });
+/* 탭바 좌우 화살표 이동 */
+$("tabbar").addEventListener("keydown", (e) => {
+  if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+  e.preventDefault();
+  const tabs = Array.from(document.querySelectorAll("#tabbar .tab"));
+  const i = tabs.findIndex((t) => t.classList.contains("active"));
+  const ni = (i + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+  tabs[ni].focus(); showTab(tabs[ni].dataset.tab);
+});
+/* 예산 모달: Enter로 바로 추천 */
+["bf-rent", "bf-deposit", "bf-area"].forEach((id) => {
+  const el = $(id); if (el) el.addEventListener("keydown", (e) => { if (e.key === "Enter") runRecommend(); });
+});
+window.addEventListener("resize", () => { moveTabIndicator(); refreshSegInds(); });
 
-init();
+init().then(() => refreshSegInds());

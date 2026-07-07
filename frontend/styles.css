@@ -45,7 +45,9 @@ button { font-family: inherit; }
 .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 svg.icon { width: 1em; height: 1em; display: inline-block; vertical-align: -0.14em;
   stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; flex: none; }
-:focus-visible { outline: none; box-shadow: var(--ring); border-radius: 8px; }
+/* outline 기반 포커스 링 — 컴포넌트 box-shadow에 덮이지 않고 요소 radius를 따라 그려짐 */
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+input:focus-visible, select:focus-visible { outline: none; }   /* 입력류는 자체 :focus 링 사용 */
 
 /* ---------- 지도 (전체화면 배경) ---------- */
 #map { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; background: #e8edec; }
@@ -126,11 +128,12 @@ svg.icon { width: 1em; height: 1em; display: inline-block; vertical-align: -0.14
   box-shadow: 0 3px 12px rgba(49,130,246,.34); }
 
 /* 지역 범위 세그먼트 (전체/서울/경기) */
-.mt-scope { flex: none; display: flex; gap: 2px; background: rgba(25,31,40,.05); border-radius: 999px; padding: 3px; }
+.mt-scope { flex: none; display: flex; gap: 2px; background: rgba(25,31,40,.05); border-radius: 999px; padding: 3px; position: relative; }
 .scope-btn { font-family: inherit; font-size: 12.5px; font-weight: 700; color: var(--ink-2); background: transparent;
-  border: none; border-radius: 999px; padding: 6px 12px; cursor: pointer; transition: color .13s, background .13s; white-space: nowrap; }
+  border: none; border-radius: 999px; padding: 6px 12px; cursor: pointer; transition: color .13s, background .13s;
+  white-space: nowrap; position: relative; z-index: 1; }
 .scope-btn:hover { color: var(--brand); }
-.scope-btn.active { background: #fff; color: var(--brand); box-shadow: 0 1px 3px rgba(25,31,40,.14); }
+.scope-btn.active { color: var(--brand); }
 
 /* 매물 토글 */
 .listing-toggle { flex: none; display: inline-flex; align-items: center; gap: 6px; font-family: inherit;
@@ -199,14 +202,21 @@ svg.icon { width: 1em; height: 1em; display: inline-block; vertical-align: -0.14
 .ract:active { transform: scale(.94); }
 
 /* ---------- 탭 메뉴바 ---------- */
-.tabbar { display: flex; gap: 4px; background: var(--surface-2); border: 1px solid var(--border-2); border-radius: 12px;
+.tabbar { position: relative; display: flex; gap: 4px; background: var(--surface-2); border: 1px solid var(--border-2); border-radius: 12px;
   padding: 4px; margin-bottom: 16px; overflow-x: auto; scrollbar-width: none; }
 .tabbar::-webkit-scrollbar { display: none; }
 .tab { flex: 1 0 auto; white-space: nowrap; font-family: inherit; font-size: 13px; font-weight: 700; color: var(--ink-2);
-  background: transparent; border: none; border-radius: 9px; padding: 8px 12px; cursor: pointer; transition: color .13s, background .13s; }
+  background: transparent; border: none; border-radius: 9px; padding: 8px 12px; cursor: pointer;
+  position: relative; z-index: 1; transition: color .18s; }
 .tab:hover { color: var(--brand); }
-.tab.active { background: #fff; color: var(--brand); box-shadow: 0 1px 3px rgba(25,31,40,.12); }
-.tabpane { animation: fade .28s cubic-bezier(.22,1,.36,1) both; }
+.tab:active { transform: scale(.95); }
+.tab.active { color: var(--brand); }
+/* 활성 탭 배경이 옆으로 미끄러지는 인디케이터 */
+.tab-ind { position: absolute; top: 4px; bottom: 4px; left: 0; width: 0; z-index: 0; border-radius: 9px;
+  background: #fff; box-shadow: 0 1px 3px rgba(25,31,40,.14);
+  transition: transform .3s cubic-bezier(.22,1,.36,1), width .3s cubic-bezier(.22,1,.36,1); }
+@media (prefers-reduced-motion: reduce) { .tab-ind { transition: none; } }
+.tabpane { animation: fade .3s cubic-bezier(.22,1,.36,1) both; }
 .tabpane.is-hidden { display: none; }
 .tabpane .block-sec:first-child { margin-top: 0; }
 
@@ -270,11 +280,12 @@ svg.icon { width: 1em; height: 1em; display: inline-block; vertical-align: -0.14
 /* ---------- 범례 기간 토글 (1/3/5년) ---------- */
 .ml-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
 .map-legend .ml-head .ml-title { margin-bottom: 0; }
-.ml-horizon { display: flex; gap: 1px; background: rgba(25,31,40,.06); border-radius: 999px; padding: 2px; flex: none; }
+.ml-horizon { display: flex; gap: 1px; background: rgba(25,31,40,.06); border-radius: 999px; padding: 2px; flex: none; position: relative; }
 .mh { font-family: inherit; font-size: 10.5px; font-weight: 700; color: var(--ink-2); background: transparent; border: none;
-  border-radius: 999px; padding: 3px 9px; cursor: pointer; transition: color .12s, background .12s; }
+  border-radius: 999px; padding: 3px 9px; cursor: pointer; transition: color .12s, background .12s;
+  position: relative; z-index: 1; }
 .mh:hover { color: var(--brand); }
-.mh.active { background: #fff; color: var(--brand); box-shadow: 0 1px 2px rgba(25,31,40,.16); }
+.mh.active { color: var(--brand); }
 
 /* ---------- 실제 점포 마커 (OSM) ---------- */
 .store-dot { width: 10px; height: 10px; border-radius: 50%; background: #7c3aed; border: 2px solid #fff;
@@ -528,9 +539,7 @@ body.panel-hidden .panel-toggle .icon { transform: rotate(180deg); }
 .about-list b { color: var(--brand-ink); }
 
 .biz-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-.biz { border: 1px solid var(--border); border-radius: 12px; padding: 13px 14px; background: var(--surface);
-  transition: box-shadow .16s, transform .16s; }
-.biz:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+.biz { border: 1px solid var(--border); border-radius: 12px; padding: 13px 14px; background: var(--surface); }
 .biz-k { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: .03em; color: var(--brand);
   text-transform: uppercase; }
 .biz-v { font-size: 13.5px; line-height: 1.55; color: var(--ink-2); margin-top: 6px; }
@@ -618,8 +627,7 @@ input[type=text]:focus { border-color: var(--brand); box-shadow: var(--ring); }
 
 .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .tile { border: 1px solid var(--border); border-radius: 12px; padding: 13px 13px 15px; position: relative;
-  overflow: hidden; background: var(--surface); transition: box-shadow .16s, transform .16s; }
-.tile:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+  overflow: hidden; background: var(--surface); }
 .tile .t-label { font-size: 12px; color: var(--muted); font-weight: 600; }
 .tile .t-val { font-family: var(--font-sans); font-size: 35px; font-weight: 800; letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums; margin-top: 4px; line-height: 1; }
@@ -735,6 +743,11 @@ input[type=text]:focus { border-color: var(--brand); box-shadow: var(--ring); }
 
 /* ---------- 반응형: 모바일은 바텀시트 ---------- */
 @media (max-width: 720px) {
+  /* 업종 칩이 토글에 짜부되지 않게: 토글은 아이콘만, 칩 박스가 남은 폭을 차지 */
+  .mt-chips { flex: 1 1 auto; min-width: 60px; }
+  .listing-toggle span { display: none; }
+  .listing-toggle { padding: 8px 10px; }
+  .mt-label { display: none; }
   .panel { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 52vh; border-radius: 20px 20px 0 0;
     border-bottom: none; }
   #map { height: 62%; }
@@ -1002,3 +1015,70 @@ input[type=text]:focus { border-color: var(--brand); box-shadow: var(--ring); }
   .prov { break-inside: avoid; margin-top: 16px !important; padding-top: 12px !important;
     border-top: 1px solid #e6ebf2 !important; font-size: 9.5px !important; color: #8a94a1 !important; }
 }
+
+/* ============================================================
+   UX 개선 배치 — 모션·마이크로인터랙션·상태 (2026-07)
+   ============================================================ */
+
+/* 지도 버블: 물결치듯 팝인 (renderBubbles가 delay 인라인 지정) */
+.bubble { animation: bubble-in .42s cubic-bezier(.34,1.4,.5,1) both; }
+@keyframes bubble-in { from { opacity: 0; transform: translateY(7px) scale(.7); } to { opacity: 1; transform: none; } }
+
+/* 모달 닫힘 애니메이션 (openModal/closeModal와 페어) */
+.modal-overlay.closing { animation: modal-fade-out .19s ease both; pointer-events: none; }
+.modal-overlay.closing .modal { animation: modal-drop .19s cubic-bezier(.4,0,.7,.4) both; }
+@keyframes modal-fade-out { to { opacity: 0; } }
+@keyframes modal-drop { to { opacity: 0; transform: translateY(10px) scale(.985); } }
+
+/* 프레스(눌림) 피드백 — 토스식 스프링 축소 */
+.mchip:active, .scope-btn:active, .mh:active, .listing-toggle:active,
+.geo-item:active, .fit-row:active, .rec-row:active, .pm:active,
+.seg-b:active, .atab:active, .plan-pick:active, .suggest:active,
+.about-btn:active, .modal-close:active { transform: scale(.955); }
+
+/* 검색 결과: 순차 등장 + 키보드 선택 하이라이트 */
+.pop-in { animation: pop-in .3s cubic-bezier(.22,1,.36,1) both; }
+@keyframes pop-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+.geo-item.sel { background: #eff5ff; border-color: var(--brand); box-shadow: inset 2.5px 0 0 var(--brand); }
+
+/* 스켈레톤 로딩 (스피너 대신 콘텐츠 자리 잡기) */
+.skel { border-radius: 10px; margin-bottom: 8px;
+  background: linear-gradient(100deg, #edf1f5 42%, #f8fafc 50%, #edf1f5 58%);
+  background-size: 220% 100%; animation: shimmer 1.25s linear infinite; }
+@keyframes shimmer { to { background-position: -220% 0; } }
+.skel-note { font-size: 11.5px; color: var(--muted); margin-bottom: 9px; display: flex; align-items: center; gap: 6px; }
+.skel-note::before { content: ""; width: 9px; height: 9px; border-radius: 50%; flex: none;
+  border: 2px solid rgba(49,130,246,.25); border-top-color: var(--brand); animation: spin .8s linear infinite; }
+
+/* 에러 카드 안 재시도 버튼 */
+.err .ract { margin-left: auto; flex: none; align-self: center; background: #fff; }
+
+/* 위치 카드: 갱신 순간 하이라이트 펄스 */
+.loc-card.flash { animation: loc-flash .7s ease-out; }
+@keyframes loc-flash { 0% { box-shadow: 0 0 0 3px rgba(49,130,246,.35); } 100% { box-shadow: 0 0 0 0 rgba(49,130,246,0); } }
+
+/* 세그먼트 인디케이터 (지역범위 · 1/3/5년 — 흰 배경이 미끄러져 이동) */
+.seg-ind { position: absolute; left: 0; top: 0; z-index: 0; border-radius: 999px; background: #fff;
+  box-shadow: 0 1px 3px rgba(25,31,40,.15);
+  transition: transform .28s cubic-bezier(.22,1,.36,1), width .28s cubic-bezier(.22,1,.36,1); }
+@media (prefers-reduced-motion: reduce) { .seg-ind { transition: none; } }
+
+/* 진짜 토글(매물·실제점포)에만 상태 점 — 모달 버튼(예산추천)과 구분 */
+.listing-toggle[aria-pressed]::before { content: ""; width: 7px; height: 7px; border-radius: 50%; flex: none;
+  background: #c6ced8; transition: background .18s, box-shadow .18s; }
+.listing-toggle[aria-pressed].on::before { background: #fff; box-shadow: 0 0 0 3px rgba(255,255,255,.28); }
+
+/* 비활성 버튼 */
+.btn:disabled { opacity: .55; cursor: default; transform: none !important; filter: none !important; }
+
+/* what-if 결과: 재계산 중 살짝 흐려짐 */
+.sim-out { transition: opacity .16s; }
+.sim-out.pending { opacity: .5; }
+
+/* 버블 값 변경 펄스 (diff 업데이트 시) */
+.bubble .tag.tick { animation: tag-tick .34s ease; }
+@keyframes tag-tick { 45% { transform: translateX(-50%) scale(1.13); } }
+
+/* 공유 완료 상태 */
+.ract.ok { color: var(--good); border-color: #b7e7cf; background: #effaf4; }
+.ract.ok .icon { color: var(--good); }
