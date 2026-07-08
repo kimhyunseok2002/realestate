@@ -325,7 +325,7 @@ function renderBubbles(list, label) {
   const seen = new Set();
   let n = 0;
   list.forEach((d) => {
-    if (state.scope !== "전체" && state.regionOf[d.gu] !== state.scope) return;
+    if (state.scope !== "전체" && state.macroOf[d.gu] !== state.scope) return;
     const val = d["y" + state.horizon];
     const band = bandFor(val);
     const tagHtml = `<span class="gu">${shortGu(d.gu)}</span>${val}%`;
