@@ -299,7 +299,7 @@ def simulate(gu: str, industry: str, lat: float, lon: float, adj: dict) -> dict:
 
 
 def industry_fit(gu: str, lat: float, lon: float) -> list[dict]:
-    """이 지점에서 10개 업종의 3년 생존율을 계산해 내림차순 정렬 (역방향 추천)."""
+    """이 지점에서 전체 업종의 3년 생존율을 계산해 내림차순 정렬 (역방향 추천)."""
     if gu not in data.DISTRICTS:
         raise ValueError(f"알 수 없는 지역: {gu}")
     out = []

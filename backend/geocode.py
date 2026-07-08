@@ -25,7 +25,7 @@ UA = "SangkwonSurvival/1.0 (prototype; commercial-district survival demo)"
 TIMEOUT = 8
 
 # 수도권(서울+경기) 대략 bounding box (lon_min, lat_min, lon_max, lat_max) — 검색 편향용
-METRO_VIEWBOX = "126.2,36.8,127.9,38.4"
+METRO_VIEWBOX = "125.8,33.0,129.8,38.7"
 
 
 def _get(path: str, params: dict) -> list | dict:
@@ -139,6 +139,26 @@ OSM_STORE_TAGS = {
     "분식": ["node[amenity=fast_food]"],
     "미용실": ["node[shop=hairdresser]", "node[shop=beauty]"],
     "패스트푸드": ["node[amenity=fast_food]"],
+    "일식집": ["node[amenity=restaurant][cuisine=japanese]", "node[amenity=restaurant][cuisine=sushi]"],
+    "중식당": ["node[amenity=restaurant][cuisine=chinese]"],
+    "고깃집": ["node[amenity=restaurant][cuisine=korean]", "node[amenity=restaurant][cuisine=barbecue]"],
+    "피자전문점": ["node[cuisine=pizza]", "node[amenity=fast_food]"],
+    "의류매장": ["node[shop=clothes]"],
+    "화장품매장": ["node[shop=cosmetics]", "node[shop=chemist]"],
+    "꽃집": ["node[shop=florist]"],
+    "정육점": ["node[shop=butcher]"],
+    "반려동물샵": ["node[shop=pet]"],
+    "휴대폰매장": ["node[shop=mobile_phone]"],
+    "네일샵": ["node[shop=beauty]", "node[shop=nails]"],
+    "피부관리실": ["node[shop=beauty]", "node[leisure=spa]"],
+    "세탁소": ["node[shop=laundry]", "node[shop=dry_cleaning]"],
+    "학원": ["node[amenity=prep_school]", "node[amenity=language_school]", "node[office=educational_institution]"],
+    "약국": ["node[amenity=pharmacy]"],
+    "자동차정비": ["node[shop=car_repair]"],
+    "PC방": ["node[amenity=internet_cafe]", "node[shop=computer]"],
+    "노래방": ["node[amenity=karaoke_box]", "node[amenity=karaoke]", "node[leisure=amusement_arcade]"],
+    "스터디카페": ["node[amenity=cafe]", "node[amenity=library]"],
+    "헬스장": ["node[leisure=fitness_centre]", "node[leisure=sports_centre]"],
 }
 
 

@@ -23,6 +23,11 @@ SALES_MULT = {
     "카페": 0.90, "디저트카페": 0.85, "한식음식점": 1.10, "치킨전문점": 1.00,
     "편의점": 1.20, "베이커리": 1.00, "호프_주점": 1.05, "분식": 0.80,
     "미용실": 0.75, "패스트푸드": 1.15,
+    "일식집": 1.15, "중식당": 1.10, "고깃집": 1.25, "피자전문점": 1.05,
+    "의류매장": 0.95, "화장품매장": 1.05, "꽃집": 0.70, "정육점": 1.10,
+    "반려동물샵": 0.85, "휴대폰매장": 1.20, "네일샵": 0.70, "피부관리실": 0.80,
+    "세탁소": 0.65, "학원": 0.90, "약국": 1.35, "자동차정비": 1.00,
+    "PC방": 0.80, "노래방": 0.85, "스터디카페": 0.60, "헬스장": 0.85,
 }
 
 # (층 표시, 층 계수) — 1층 가중, 지하/상층부는 임대료·매출 계수 낮음
@@ -30,6 +35,11 @@ FLOOR_OPTIONS = [
     ("지하 1층", 0.55), ("1층", 1.0), ("1층", 1.0), ("1층", 1.0),
     ("2층", 0.62), ("2층", 0.62), ("3층", 0.48),
 ]
+
+# 매물 중개사무소 이름 생성용 (프로토타입 — 실제 업체 아님)
+AGENCY_PREFIX = ["으뜸", "제일", "미래", "중앙", "행복", "대박", "한신", "새롬",
+                 "우리", "정든", "믿음", "365", "그린", "탑", "웰빙", "명가"]
+AGENCY_SUFFIX = ["공인중개사사무소", "부동산공인중개사", "공인중개사", "부동산"]
 
 _LISTINGS: dict[str, dict] = {}
 _BY_GU: dict[str, list[dict]] = {}
@@ -69,14 +79,22 @@ def _build() -> None:
             lat = d["lat"] + (rng.random() - 0.5) * 0.022
             lon = d["lon"] + (rng.random() - 0.5) * 0.028
             lid += 1
+            # 중개사무소명 + 지역번호 기반 전화번호 (프로토타입 데모)
+            gu_core = gu.split(" ")[-1]
+            agency = f"{gu_core[:-1] if gu_core[-1] in '구시군' else gu_core} {rng.choice(AGENCY_PREFIX)}{rng.choice(AGENCY_SUFFIX)}"
+            code = data.area_code(gu)
+            mid = rng.randint(200, 989) if code == "02" else rng.randint(200, 899)
+            phone = f"{code}-{mid}-{rng.randint(1000, 9999)}"
             listing = dict(
                 id=f"L{lid:04d}", gu=gu, region=data.district_region(gu),
+                macro=data.district_macro(gu),
                 lat=round(lat, 6), lon=round(lon, 6),
                 floor=floor_label, floor_factor=ff, area_pyeong=area,
                 corner=corner, road_facing=road,
                 rent_manwon=rent, deposit_manwon=deposit,
                 maintenance_manwon=maint, premium_manwon=premium,
                 title=_title(gu, floor_label, corner, area),
+                agency=agency, agency_phone=phone,
             )
             _LISTINGS[listing["id"]] = listing
             rows.append(listing)
@@ -109,7 +127,8 @@ def recommend(industry: str, scope: str = "전체", max_rent: int = 100000,
     from . import survival  # 지연 import (순환 방지)
     cands = []
     for gu, rows in _BY_GU.items():
-        if scope in ("서울", "경기") and data.district_region(gu) != scope:
+        # scope: "전체" | 권역(수도권·충청·영남·호남·강원·제주) | 시·도명
+        if scope not in ("전체", "", data.district_macro(gu), data.district_region(gu)):
             continue
         for l in rows:
             if l["rent_manwon"] > max_rent or l["deposit_manwon"] > max_deposit or l["area_pyeong"] < min_area:

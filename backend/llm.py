@@ -84,9 +84,9 @@ def _fmt_pred(p: dict) -> str:
     risks = p["risks"]
     feat = p["features"]
     lines = [
-        f"[분석 대상] {data.district_region(inp['gu'])} {inp['gu']} · 업종: {inp['industry_label']}",
+        f"[분석 대상] {data.gu_full(inp['gu'])} · 업종: {inp['industry_label']}",
         f"[예측 생존율] 1년 {s['y1']}% / 3년 {s['y3']}% / 5년 {s['y5']}%  "
-        f"(수도권 동일업종 평균 3년 {p['seoul_avg_3y']}%, 차이 {p['vs_seoul_avg_3y']:+}%p)",
+        f"(전국 동일업종 평균 3년 {p['seoul_avg_3y']}%, 차이 {p['vs_seoul_avg_3y']:+}%p)",
         f"[예상 중위 생존기간] 약 {p['median_months']:.0f}개월 (위험비 HR={p['hazard_ratio']})",
         f"[상권 변수] 반경 {feat['radius_m']}m 내 동종 약 {feat['competition_count']}개, "
         f"유동인구지수 {feat['foot_traffic']}, 공실률 {feat['vacancy']}%, "
@@ -143,12 +143,12 @@ def _template_report(p: dict) -> str:
     band_word = {"good": "비교적 안정적", "warning": "평균 수준",
                  "serious": "다소 취약", "critical": "매우 취약"}[p["band"]]
     diff = p["vs_seoul_avg_3y"]
-    diff_word = ("수도권 평균보다 높습니다" if diff > 1 else
-                 "수도권 평균보다 낮습니다" if diff < -1 else "수도권 평균과 비슷합니다")
+    diff_word = ("전국 평균보다 높습니다" if diff > 1 else
+                 "전국 평균보다 낮습니다" if diff < -1 else "전국 평균과 비슷합니다")
 
     lines = []
     lines.append(
-        f"{data.district_region(inp['gu'])} {inp['gu']}에서 {inp['industry_label']}의 3년 생존율은 약 {s['y3']}%로, "
+        f"{data.gu_full(inp['gu'])}에서 {inp['industry_label']}의 3년 생존율은 약 {s['y3']}%로, "
         f"이 자리·이 업종은 {band_word}입니다. 1년 {s['y1']}%, 5년 {s['y5']}% 수준이며 "
         f"동일 업종 {diff_word}(3년 기준 {diff:+.1f}%p)."
     )

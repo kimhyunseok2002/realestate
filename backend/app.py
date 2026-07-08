@@ -63,7 +63,7 @@ FRONTEND_DIR = os.path.join(_ROOT, "frontend")
 def meta():
     districts = [
         {"gu": name, "gu_en": d["name_en"], "lat": d["lat"], "lon": d["lon"],
-         "region": data.district_region(name)}
+         "region": data.district_region(name), "macro": data.district_macro(name)}
         for name, d in data.DISTRICTS.items()
     ]
     industries = [
@@ -72,6 +72,7 @@ def meta():
     return {
         "districts": districts,
         "industries": industries,
+        "macros": data.MACROS,
         "provenance": data.DATA_PROVENANCE,
         "llm_available": llm.available(),
         "default_center": {"lat": 37.5665, "lon": 126.9780},  # 서울시청
@@ -87,8 +88,8 @@ def api_geocode(q: str = Query(..., min_length=1)):
 
 
 @app.get("/api/reverse")
-def api_reverse(lat: float = Query(..., ge=36.8, le=38.4),
-                lon: float = Query(..., ge=126.2, le=127.9)):
+def api_reverse(lat: float = Query(..., ge=33.0, le=38.7),
+                lon: float = Query(..., ge=125.8, le=129.8)):
     return geocode.reverse(lat, lon)
 
 
@@ -141,8 +142,8 @@ def api_recommend(industry: str = Query(...), scope: str = Query("전체"),
 # ---------------------------------------------------------------------------
 @app.get("/api/industry_fit")
 def api_industry_fit(gu: str = Query(...),
-                     lat: float = Query(..., ge=36.8, le=38.4),
-                     lon: float = Query(..., ge=126.2, le=127.9)):
+                     lat: float = Query(..., ge=33.0, le=38.7),
+                     lon: float = Query(..., ge=125.8, le=129.8)):
     if gu not in data.DISTRICTS:
         raise HTTPException(400, f"알 수 없는 지역: {gu}")
     return {"gu": gu, "region": data.district_region(gu),
@@ -154,8 +155,8 @@ def api_industry_fit(gu: str = Query(...),
 # ---------------------------------------------------------------------------
 @app.get("/api/whatif_sim")
 def api_whatif_sim(gu: str = Query(...), industry: str = Query(...),
-                   lat: float = Query(..., ge=36.8, le=38.4),
-                   lon: float = Query(..., ge=126.2, le=127.9),
+                   lat: float = Query(..., ge=33.0, le=38.7),
+                   lon: float = Query(..., ge=125.8, le=129.8),
                    rent: float = Query(0.0, ge=-0.6, le=0.6),
                    foot: float = Query(0.0, ge=-0.6, le=0.6),
                    comp: float = Query(0.0, ge=-0.6, le=0.6)):
@@ -169,8 +170,8 @@ def api_whatif_sim(gu: str = Query(...), industry: str = Query(...),
 # 실제 점포 (OSM)
 # ---------------------------------------------------------------------------
 @app.get("/api/stores")
-def api_stores(lat: float = Query(..., ge=36.8, le=38.4),
-               lon: float = Query(..., ge=126.2, le=127.9),
+def api_stores(lat: float = Query(..., ge=33.0, le=38.7),
+               lon: float = Query(..., ge=125.8, le=129.8),
                industry: str = Query(...), radius: int = Query(700, ge=100, le=2000)):
     if industry not in data.INDUSTRIES:
         raise HTTPException(400, f"알 수 없는 업종: {industry}")
@@ -182,8 +183,8 @@ def api_stores(lat: float = Query(..., ge=36.8, le=38.4),
 # 입지 인프라 (실측 · OSM): 교통·접근성 + 앵커/집객시설
 # ---------------------------------------------------------------------------
 @app.get("/api/context")
-def api_context(lat: float = Query(..., ge=36.8, le=38.4),
-                lon: float = Query(..., ge=126.2, le=127.9),
+def api_context(lat: float = Query(..., ge=33.0, le=38.7),
+                lon: float = Query(..., ge=125.8, le=129.8),
                 radius: int = Query(1000, ge=200, le=2000)):
     return geocode.place_context(lat, lon, radius)
 
@@ -226,8 +227,8 @@ def api_report(req: ReportRequest):
 
 @app.get("/api/deep_report")
 def api_deep_report(gu: str = Query(...), industry: str = Query(...),
-                    lat: float = Query(..., ge=36.8, le=38.4),
-                    lon: float = Query(..., ge=126.2, le=127.9),
+                    lat: float = Query(..., ge=33.0, le=38.7),
+                    lon: float = Query(..., ge=125.8, le=129.8),
                     area: int = Query(15, ge=4, le=200),
                     rent: int = Query(0, ge=0), deposit: int = Query(-1),
                     premium: int = Query(-1), maint: int = Query(0),

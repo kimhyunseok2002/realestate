@@ -46,7 +46,10 @@ const state = {
   storesOn: false, storesLayer: null, storesMarkers: [], storesKey: null,
   paid: {}, payKey: null, payThen: "view", reportText: "", reportSrc: "",
   deepReport: null, reportInputs: null,
+  compare: [], lastListingId: null,
+  theme: "light", tileLayer: null,
 };
+let CHART_INK = "#191f28";   // 다크모드에서 차트 라벨 색 (테마 전환 시 갱신)
 
 const COLORS = {
   s1: "#3182f6", s2: "#12b886", s1soft: "rgba(49,130,246,0.12)",
@@ -54,6 +57,46 @@ const COLORS = {
   ink: "#191f28", muted: "#8b95a1", grid: "#eef1f4",
 };
 const REDUCE_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------------- 다크모드 ---------------- */
+const SUN_SVG = '<svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+const MOON_SVG = '<svg class="icon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>';
+function basemapUrl(t) {
+  return t === "dark"
+    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+    : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+}
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function initTheme() {
+  let saved = null;
+  try { saved = localStorage.getItem("survimap_theme"); } catch (e) { /* */ }
+  const dark = saved ? saved === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+  applyTheme(dark ? "dark" : "light", true);
+}
+function applyTheme(t, silent) {
+  state.theme = t;
+  document.documentElement.setAttribute("data-theme", t);
+  try { localStorage.setItem("survimap_theme", t); } catch (e) { /* */ }
+  CHART_INK = cssVar("--ink") || CHART_INK;
+  if (state.tileLayer) state.tileLayer.setUrl(basemapUrl(t));
+  recolorChart();
+  updateThemeBtn();
+  if (!silent) toast(t === "dark" ? "다크 모드" : "라이트 모드");
+}
+function toggleTheme() { applyTheme(state.theme === "dark" ? "light" : "dark"); }
+function updateThemeBtn() {
+  const b = $("theme-btn"); if (!b) return;
+  b.innerHTML = state.theme === "dark" ? SUN_SVG : MOON_SVG;
+  b.title = state.theme === "dark" ? "라이트 모드로" : "다크 모드로";
+  b.setAttribute("aria-label", b.title);
+}
+function recolorChart() {
+  const c = state.chart; if (!c) return;
+  const grid = cssVar("--grid"), muted = cssVar("--muted");
+  c.options.scales.x.grid.color = grid; c.options.scales.y.grid.color = grid;
+  c.options.scales.x.ticks.color = muted; c.options.scales.y.ticks.color = muted;
+  c.update("none");
+}
 
 /* 숫자 카운트업 (토스식) */
 function countUp(el, to, decimals = 0, dur = 750) {
@@ -98,19 +141,22 @@ function bandFor(pct) {
 }
 const BAND_KO = { good: "안정적", warning: "평균 수준", serious: "취약", critical: "매우 취약" };
 const bandColor = (b) => COLORS[b];
-const shortGu = (gu) => gu.replace(/(특별시|광역시|구|시|군)$/, "");
+const shortGu = (gu) => { const s = gu.replace(/(특별자치시|특별자치도|특별시|광역시|구|시|군)$/, ""); return s.length >= 2 ? s : gu; };
 const regionLabel = (gu) => (state.regionOf && state.regionOf[gu]) || "서울";
+// 표시용 전체 지명 — 광역시(키==시도명)일 때 "부산 부산" 이중표기 방지
+const guFull = (gu) => { const r = regionLabel(gu); return (gu && gu.includes(r)) ? gu : `${r} ${gu}`; };
 
 /* ---------------- init ---------------- */
 async function init() {
   try { state.meta = await api("/api/meta"); }
   catch (e) { document.body.insertAdjacentHTML("afterbegin", `<div class="err" style="margin:12px">메타 로드 실패: ${esc(e.message)}</div>`); return; }
 
+  initTheme();
   loadPaid();
   loadUser();
   renderAccountBtn();
-  state.regionOf = {};
-  state.meta.districts.forEach((d) => { state.regionOf[d.gu] = d.region; });
+  state.regionOf = {}; state.macroOf = {};
+  state.meta.districts.forEach((d) => { state.regionOf[d.gu] = d.region; state.macroOf[d.gu] = d.macro || d.region; });
 
   buildIndustryChips();
   buildRegionChips();
@@ -122,7 +168,7 @@ async function init() {
   const qlat = parseFloat(q.get("lat")), qlon = parseFloat(q.get("lon")), qgu = q.get("gu");
   if (isFinite(qlat) && isFinite(qlon)) {
     await setLocation(qlat, qlon, qgu && state.regionOf[qgu]
-      ? { gu: qgu, address: `${regionLabel(qgu)} ${qgu}`, skipReverse: true, fly: true, zoom: 14, reveal: true }
+      ? { gu: qgu, address: `${guFull(qgu)}`, skipReverse: true, fly: true, zoom: 14, reveal: true }
       : { fly: true, zoom: 14, reveal: true });
   } else {
     await setLocation(37.4979, 127.0276, { fly: true, zoom: 12 });   // 강남역 데모
@@ -138,12 +184,40 @@ function buildIndustryChips() {
     el.onclick = () => selectIndustry(it.key);
     box.appendChild(el);
   });
+  wireChipScroll();
+}
+
+/* 칩바 좌우 스크롤 버튼 — 넘치면 화살표 표시, 클릭 시 한 화면씩 이동 */
+function wireChipScroll() {
+  document.querySelectorAll(".mt-chipscroll").forEach((wrap) => {
+    const sc = wrap.querySelector(".mt-chips");
+    const prev = wrap.querySelector(".chip-nav.prev");
+    const next = wrap.querySelector(".chip-nav.next");
+    if (!sc || !prev || !next) return;
+    const update = () => {
+      const max = sc.scrollWidth - sc.clientWidth - 2;
+      const canPrev = sc.scrollLeft > 2;
+      const canNext = sc.scrollLeft < max;
+      prev.classList.toggle("show", canPrev);
+      next.classList.toggle("show", canNext);
+      wrap.classList.toggle("can-prev", canPrev);
+      wrap.classList.toggle("can-next", canNext);
+    };
+    if (!wrap._wired) {
+      const step = () => Math.max(120, sc.clientWidth * 0.8);
+      prev.addEventListener("click", () => sc.scrollBy({ left: -step(), behavior: REDUCE_MOTION ? "auto" : "smooth" }));
+      next.addEventListener("click", () => sc.scrollBy({ left: step(), behavior: REDUCE_MOTION ? "auto" : "smooth" }));
+      sc.addEventListener("scroll", update, { passive: true });
+      wrap._wired = true;
+    }
+    update();
+  });
 }
 function buildRegionChips() {
   const box = $("region-chips");
   box.innerHTML = "";
   state.meta.districts.forEach((d) => {
-    if (state.scope !== "전체" && d.region !== state.scope) return;
+    if (state.scope !== "전체" && d.macro !== state.scope) return;
     const el = document.createElement("button");
     el.type = "button"; el.className = "mchip"; el.textContent = shortGu(d.gu); el.dataset.gu = d.gu;
     el.setAttribute("aria-label", d.gu);
@@ -151,6 +225,7 @@ function buildRegionChips() {
     box.appendChild(el);
   });
   if (state.loc && state.loc.gu) highlightRegionChip(state.loc.gu);
+  wireChipScroll();
 }
 
 /* 세그먼트 컨트롤: 활성 배경이 옆으로 미끄러지는 인디케이터 */
@@ -181,7 +256,7 @@ function setScope(scope) {
 }
 function fitScopeBounds() {
   const pts = state.meta.districts
-    .filter((d) => state.scope === "전체" || d.region === state.scope)
+    .filter((d) => state.scope === "전체" || d.macro === state.scope)
     .map((d) => [d.lat, d.lon]);
   if (!pts.length || !state.map) return;
   state.map.fitBounds(pts, {
@@ -225,8 +300,8 @@ function initMap() {
   const c = state.meta.default_center;
   const map = L.map("map", { zoomControl: false, minZoom: 10 }).setView([c.lat, c.lon], 11);
   L.control.zoom({ position: "bottomright" }).addTo(map);
-  // 톤다운 베이스맵(CARTO Positron) — 데이터 버블이 배경보다 도드라지도록
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+  // 톤다운 베이스맵(CARTO) — 라이트/다크 테마에 맞춰 타일 교체
+  state.tileLayer = L.tileLayer(basemapUrl(state.theme), {
     maxZoom: 19, subdomains: "abcd", attribution: "© OpenStreetMap © CARTO",
   }).addTo(map);
   map.on("click", (e) => { clearGeo(); setLocation(e.latlng.lat, e.latlng.lng, { reveal: true }); });
@@ -322,7 +397,7 @@ async function selectGu(gu) {
   const d = (state.overview || []).find((x) => x.gu === gu)
     || (state.meta.districts.find((x) => x.gu === gu));
   if (!d) return;
-  await setLocation(d.lat, d.lon, { gu, address: `${regionLabel(gu)} ${gu}`, skipReverse: true, fly: true, zoom: 14, reveal: true });
+  await setLocation(d.lat, d.lon, { gu, address: `${guFull(gu)}`, skipReverse: true, fly: true, zoom: 14, reveal: true });
 }
 
 async function setLocation(lat, lon, { gu, address, skipReverse, fly, zoom, reveal } = {}) {
@@ -334,7 +409,7 @@ async function setLocation(lat, lon, { gu, address, skipReverse, fly, zoom, reve
   }
 
   if (skipReverse && gu) {
-    state.loc = { lat, lon, gu, address: address || `${regionLabel(gu)} ${gu}`, snapped: false, in_support: true };
+    state.loc = { lat, lon, gu, address: address || `${guFull(gu)}`, snapped: false, in_support: true };
     renderLocCard(false);
   } else {
     const seq = ++state.reverseSeq;
@@ -358,7 +433,7 @@ function renderLocCard(loading) {
   const card = $("loc-card");
   card.classList.remove("hidden");
   if (!loading && !REDUCE_MOTION) { card.classList.remove("flash"); void card.offsetWidth; card.classList.add("flash"); }
-  $("loc-gu-text").textContent = state.loc.gu ? `${regionLabel(state.loc.gu)} ${state.loc.gu}` : "위치 확인 중…";
+  $("loc-gu-text").textContent = state.loc.gu ? `${guFull(state.loc.gu)}` : "위치 확인 중…";
   $("loc-addr").textContent = state.loc.address;
   $("loc-meta").textContent = `${state.loc.lat.toFixed(5)}, ${state.loc.lon.toFixed(5)}`;
   const sn = $("snap-note");
@@ -457,7 +532,7 @@ function renderResults(p, reveal) {
   const first = body.classList.contains("hidden");   // 최초 공개 여부
   body.classList.remove("hidden");
 
-  $("result-title").innerHTML = `<span>${regionLabel(p.input.gu)} ${esc(p.input.gu)}</span><span class="rt-sep">·</span><span class="rt-ind">${esc(p.input.industry_label)}</span>`;
+  $("result-title").innerHTML = `<span>${esc(guFull(p.input.gu))}</span><span class="rt-sep">·</span><span class="rt-ind">${esc(p.input.industry_label)}</span>`;
 
   const tiles = [
     { k: "1년", v: p.survival.y1 }, { k: "3년", v: p.survival.y3, hero: true }, { k: "5년", v: p.survival.y5 },
@@ -479,7 +554,7 @@ function renderResults(p, reveal) {
   const med = p.median_capped ? `60<span class="u">개월+</span>` : `${Math.round(p.median_months)}<span class="u">개월</span>`;
   $("summary").innerHTML = `
     <div class="s-item"><div class="s-k">예상 중위 생존기간</div><div class="s-v">${med}</div></div>
-    <div class="s-item"><div class="s-k">수도권 평균(3년) 대비</div><div class="s-v ${diffCls}">${diffTxt}</div></div>
+    <div class="s-item"><div class="s-k">전국 평균(3년) 대비</div><div class="s-v ${diffCls}">${diffTxt}</div></div>
     <div class="s-item"><div class="s-k">위험비 (HR)</div><div class="s-v">${p.hazard_ratio}</div></div>
     <div class="s-item"><div class="s-k">실측 코호트</div><div class="s-v">${p.km.n}<span class="u">개 점포</span></div></div>`;
 
@@ -514,9 +589,9 @@ const horizonLabelPlugin = {
     ctx.font = "700 11px 'Fira Code', monospace"; ctx.textAlign = "center";
     [12, 36, 60].forEach((m) => {
       const v = ds.data[m]; const px = x.getPixelForValue(m), py = y.getPixelForValue(v);
-      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(px, py, 4.5, 0, 7); ctx.fill();
+      ctx.fillStyle = cssVar("--surface") || "#fff"; ctx.beginPath(); ctx.arc(px, py, 4.5, 0, 7); ctx.fill();
       ctx.fillStyle = COLORS.s1; ctx.beginPath(); ctx.arc(px, py, 3, 0, 7); ctx.fill();
-      ctx.fillStyle = COLORS.ink; ctx.fillText(`${Math.round(v)}%`, px, py - 11);
+      ctx.fillStyle = CHART_INK; ctx.fillText(`${Math.round(v)}%`, px, py - 11);
     });
     ctx.restore();
   },
@@ -592,7 +667,7 @@ function renderSimilar(p) {
       <div class="sim-bar-track"><div class="sim-bar ${r.me ? "me" : ""}" style="width:0" data-w="${(r.v / maxv) * 100}"></div></div>
       <div class="s-pct">${r.v}%</div></div>`).join("");
   playBars($("sim-list"));
-  $("sim-note").innerHTML = `<span class="ico">${ICONS.info}</span><span>위험 프로파일이 가장 비슷한 지역 · 수도권 동일업종 평균 3년 ${p.seoul_avg_3y}%</span>`;
+  $("sim-note").innerHTML = `<span class="ico">${ICONS.info}</span><span>위험 프로파일이 가장 비슷한 지역 · 전국 동일업종 평균 3년 ${p.seoul_avg_3y}%</span>`;
 }
 function renderFeatures(p) {
   const f = p.features;
@@ -665,6 +740,7 @@ async function openListing(lid) {
     state.lastPred = r.prediction;
     renderResults(r.prediction, true);          // 결과 렌더(매물 카드는 숨겨짐)
     showTab("summary");                          // 매물 분석 카드는 요약 탭에 뜸
+    state.lastListingId = l.id;
     renderListingCard(l, r.analysis);            // 그 위에 매물 분석 카드 표시
     state.reportInputs = { area: l.area_pyeong, rent: l.rent_manwon, deposit: l.deposit_manwon, premium: l.premium_manwon, capital: 0, target: 0 };
     highlightBubble(l.gu); highlightRegionChip(l.gu);
@@ -678,6 +754,34 @@ async function openListing(lid) {
     $("input-err").classList.remove("hidden");
   }
 }
+function hashInt(str) { let h = 0; for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0; return h; }
+// 매물별 결정론적 점포 일러스트 (합성 매물 — 실사진 대체용 예시 이미지)
+function listingThumb(l, band) {
+  const c = COLORS[band] || "#3182f6";
+  const h = hashInt((l.id || "") + (l.gu || ""));
+  const stripes = 6 + (h % 5), sw = 300 / stripes;
+  let awn = "";
+  for (let i = 0; i < stripes; i++)
+    awn += `<path d="M${(10 + i * sw).toFixed(1)} 58 h${sw.toFixed(1)} l-7 16 h-${(sw - 7).toFixed(1)} z" fill="${i % 2 ? c : "#ffffff"}"/>`;
+  const cols = 3 + (h % 3), uw = 300 / cols;
+  let win = "";
+  for (let i = 0; i < cols; i++)
+    win += `<rect x="${(10 + i * uw + 8).toFixed(1)}" y="18" width="${(uw - 16).toFixed(1)}" height="22" rx="2.5" fill="var(--th-win)"/>`;
+  return `<svg class="lc-thumb-svg" viewBox="0 0 320 132" preserveAspectRatio="none" role="img" aria-label="점포 예시 일러스트">
+    <rect width="320" height="132" fill="var(--th-sky)"/>
+    <rect x="10" y="6" width="300" height="124" rx="6" fill="var(--th-wall)"/>
+    ${win}
+    <rect x="10" y="52" width="300" height="7" fill="${c}"/>
+    ${awn}
+    <rect x="10" y="82" width="300" height="48" fill="var(--th-store)"/>
+    <rect x="28" y="92" width="104" height="30" rx="3" fill="var(--th-glass)"/>
+    <rect x="150" y="90" width="58" height="40" rx="3" fill="var(--th-door)"/>
+    <rect x="226" y="92" width="82" height="30" rx="3" fill="var(--th-glass)"/>
+    <circle cx="201" cy="110" r="2.6" fill="${c}"/>
+  </svg>`;
+}
+const PHONE_SVG = '<svg class="icon" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.8a16 16 0 0 0 6 6l1.3-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2Z"/></svg>';
+
 function renderListingCard(l, a) {
   const box = $("listing-card");
   const feats = [l.floor, `전용 ${l.area_pyeong}평`];
@@ -686,6 +790,7 @@ function renderListingCard(l, a) {
   const won = (v) => v.toLocaleString();
   box.className = `listing-card band-${a.band}`;
   box.innerHTML = `
+    <div class="lc-photo">${listingThumb(l, a.band)}<span class="lc-photo-tag">예시 이미지</span></div>
     <div class="lc-head">
       <span class="lc-ico">${ICONS.home}</span>
       <div class="lc-title">${esc(l.title)}</div>
@@ -703,10 +808,96 @@ function renderListingCard(l, a) {
       <div class="lc-af-row"><span>고정비 (월세+관리비)</span><b>${won(a.monthly_fixed_manwon)}만원</b></div>
       <div class="lc-af-bar"><div class="lc-af-fill f-${a.band}" style="width:0" data-w="${Math.min(100, a.rent_to_sales_pct)}"></div><span class="lc-af-pct">${a.rent_to_sales_pct}%</span></div>
       <div class="lc-note">${esc(a.note)}</div>
-    </div>`;
+    </div>
+    ${l.agency ? `<div class="lc-agency">
+      <div class="lc-ag-info"><div class="lc-ag-name">${esc(l.agency)}</div><span class="lc-ag-sub">담당 중개사 · 데모 연락처</span></div>
+      <a class="lc-ag-call" href="tel:${esc((l.agency_phone || "").replace(/[^0-9]/g, ""))}">${PHONE_SVG}${esc(l.agency_phone || "")}</a>
+    </div>` : ""}
+    <button type="button" class="lc-cmp" id="lc-cmp"></button>`;
   box.classList.remove("hidden");
   playBars(box);
+  const cmpBtn = $("lc-cmp");
+  cmpBtn.onclick = () => addToCompare(l, a);
+  updateCmpAddBtn(l.id);
 }
+
+/* ---------------- 매물 비교함 ---------------- */
+const CMP_MAX = 3;
+function inCompare(id) { return state.compare.some((c) => c.id === id); }
+function updateCmpAddBtn(id) {
+  const btn = $("lc-cmp"); if (!btn) return;
+  const on = inCompare(id);
+  btn.classList.toggle("added", on);
+  btn.disabled = !on && state.compare.length >= CMP_MAX;
+  btn.innerHTML = on
+    ? `<svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg> 비교함에 담김`
+    : (btn.disabled ? `비교함 가득참 (최대 ${CMP_MAX})` : `<svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> 비교함에 담기`);
+}
+function addToCompare(l, a) {
+  if (inCompare(l.id)) { removeFromCompare(l.id); return; }   // 토글
+  if (state.compare.length >= CMP_MAX) { toast(`비교함은 최대 ${CMP_MAX}개까지예요`); return; }
+  const y3 = state.lastPred ? state.lastPred.survival.y3 : null;
+  state.compare.push({
+    id: l.id, gu: l.gu, floor: l.floor, area: l.area_pyeong,
+    rent: l.rent_manwon, deposit: l.deposit_manwon, maint: l.maintenance_manwon, premium: l.premium_manwon,
+    corner: l.corner, road: l.road_facing,
+    y3, band: y3 != null ? bandFor(y3) : "warning",
+    verdict: a.verdict, aband: a.band, rts: a.rent_to_sales_pct, sales: a.expected_sales_manwon,
+  });
+  renderCmpTray();
+  updateCmpAddBtn(l.id);
+  toast(`비교함에 담았어요 (${state.compare.length}/${CMP_MAX})`);
+}
+function removeFromCompare(id) {
+  state.compare = state.compare.filter((c) => c.id !== id);
+  renderCmpTray();
+  updateCmpAddBtn(id);
+}
+function clearCompare() { state.compare = []; renderCmpTray(); if (state.lastListingId) updateCmpAddBtn(state.lastListingId); }
+function renderCmpTray() {
+  const tray = $("cmp-tray");
+  if (!state.compare.length) { tray.classList.add("hidden"); return; }
+  tray.classList.remove("hidden");
+  $("cmp-count").textContent = state.compare.length;
+  $("cmp-tray-items").innerHTML = state.compare.map((c) => `
+    <span class="cmp-chip band-${c.band}">
+      <b>${shortGu(c.gu)} ${esc(c.floor)}</b><i>${c.area}평·월${drWon(c.rent)}</i>
+      <button type="button" class="cmp-x" data-id="${esc(c.id)}" aria-label="빼기"><svg class="icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </span>`).join("");
+  document.querySelectorAll("#cmp-tray-items .cmp-x").forEach((el) => {
+    el.onclick = () => removeFromCompare(el.dataset.id);
+  });
+  $("cmp-open").disabled = state.compare.length < 2;
+  $("cmp-open").textContent = state.compare.length < 2 ? "매물 2개+ 담기" : `비교하기 (${state.compare.length})`;
+}
+function openCompare() {
+  if (state.compare.length < 2) { toast("비교하려면 매물을 2개 이상 담아주세요"); return; }
+  const rows = state.compare;
+  const best = {
+    y3: Math.max(...rows.map((r) => r.y3 ?? -1)),
+    rts: Math.min(...rows.map((r) => r.rts)),
+    rent: Math.min(...rows.map((r) => r.rent)),
+    deposit: Math.min(...rows.map((r) => r.deposit)),
+    sales: Math.max(...rows.map((r) => r.sales)),
+  };
+  const cell = (v, isBest, sub) => `<td class="${isBest ? "cmp-best" : ""}">${v}${sub ? `<i>${sub}</i>` : ""}</td>`;
+  const head = `<tr><th></th>${rows.map((r) => `<th><span class="cmp-h-gu">${esc(guFull(r.gu))}</span><span class="cmp-h-sub">${esc(r.floor)} · ${r.area}평${r.corner ? " · 코너" : ""}</span><button type="button" class="cmp-open-one" data-id="${esc(r.id)}">열기</button></th>`).join("")}</tr>`;
+  const body = [
+    ["3년 생존율", rows.map((r) => cell(`<b style="color:${bandColor(r.band)}">${r.y3}%</b>`, r.y3 === best.y3))],
+    ["예상 월매출", rows.map((r) => cell(`${drWon(r.sales)}만`, r.sales === best.sales))],
+    ["월세", rows.map((r) => cell(`${drWon(r.rent)}만`, r.rent === best.rent))],
+    ["보증금", rows.map((r) => cell(`${drWon(r.deposit)}만`, r.deposit === best.deposit))],
+    ["권리금", rows.map((r) => cell(r.premium ? `${drWon(r.premium)}만` : "무권리", false))],
+    ["임대료 부담", rows.map((r) => cell(`<b style="color:${bandColor(r.aband)}">${r.rts}%</b>`, r.rts === best.rts, r.verdict))],
+  ].map(([label, cells]) => `<tr><th>${label}</th>${cells.join("")}</tr>`).join("");
+  $("compare-body").innerHTML = `<table class="cmp-table">${head}${body}</table>
+    <div class="cmp-legend">🟢 항목별 최선값 · 열기를 누르면 그 매물 분석으로 이동합니다</div>`;
+  document.querySelectorAll("#compare-body .cmp-open-one").forEach((el) => {
+    el.onclick = () => { closeModal("compare-modal"); openListing(el.dataset.id); };
+  });
+  openModal("compare-modal");
+}
+function closeCompare() { closeModal("compare-modal"); }
 
 /* ---------------- LLM report ---------------- */
 async function loadReport(seq) {
@@ -746,6 +937,7 @@ function savePaid() { try { localStorage.setItem("survimap_paid", JSON.stringify
 function renderReportGated() {
   const box = $("report-box"), srcEl = $("report-src");
   if (!state.lastPred) return;
+  updatePdfLock();
   if (reportUnlocked()) {
     srcEl.innerHTML = `<span class="src-badge src-claude">${ICONS.spark} 심층 리포트</span>`;
     box.classList.add("unlocked");
@@ -778,8 +970,8 @@ function renderReportGated() {
     srcEl.innerHTML = `<span class="src-badge src-lock">${LOCK_SVG} 유료</span>`;
     box.classList.remove("unlocked");
     const teaser = state.reportText
-      ? esc(String(state.reportText).replace(/\s+/g, " ").trim().slice(0, 56)) + "…"
-      : "이 자리·업종의 3년 생존율, 손익분기·투자회수, 실패 시나리오와 임대료 협상, 더 나은 대안까지 담은 심층 리포트.";
+      ? esc(String(state.reportText).replace(/\s+/g, " ").trim())     // CSS 페이드로 자연스럽게 흐림 (하드 절단 X)
+      : "이 자리·업종의 3년 생존율, 손익분기·투자회수, 실패 시나리오와 임대료 협상, 더 나은 대안까지 — 창업 의사결정에 필요한 모든 숫자를 담은 심층 리포트.";
     const feats = [
       ["📊", "손익분기·투자회수 시뮬", "내 예산·목표순익 기준 월 손익과 회수기간"],
       ["🎯", "명확한 판정 + 실행 플레이북", "진입 여부 결론과 살아남는 구체 전략"],
@@ -795,7 +987,7 @@ function renderReportGated() {
           ${feats.map((f) => `<li><span class="rl-ico">${f[0]}</span><span class="rl-lx"><b>${f[1]}</b><i>${f[2]}</i></span></li>`).join("")}
         </ul>
         <div class="rl-desc">억대가 걸린 결정, <b>숫자로 확인</b>하고 <b>PDF·TXT로 저장</b>해 은행·동업자 설득에 쓰세요.</div>
-        <button type="button" class="btn rl-btn" id="report-unlock">₩9,900 결제하고 전체 보기</button>
+        <button type="button" class="btn rl-btn" id="report-unlock">₩4,900 결제하고 전체 보기</button>
         <button type="button" class="rl-up" id="report-upgrade">구독 플랜으로 무제한 이용 →</button>
       </div>`;
     $("report-unlock").onclick = () => openCheckout("view");
@@ -806,11 +998,11 @@ function downloadReportTxt() {
   if (!reportUnlocked() || !state.lastPred) return;
   const p = state.lastPred.input;
   const r = state.deepReport;
-  let body = `[SurviMap 심층 리포트] ${regionLabel(p.gu)} ${p.gu} · ${p.industry_label}\n${"=".repeat(46)}\n\n`;
+  let body = `[SurviMap 심층 리포트] ${guFull(p.gu)} · ${p.industry_label}\n${"=".repeat(46)}\n\n`;
   if (r) {
     const f = r.financials, v = r.verdict, rn = r.rent_nego, tr = r.trend;
     body += `■ 종합 판정: ${v.label} — ${v.sub}\n`;
-    body += `  3년 생존율 ${r.survival.y3}% (수도권 평균 ${r.avg}%, 위험 ${r.hazard_ratio}배)\n\n`;
+    body += `  3년 생존율 ${r.survival.y3}% (전국 평균 ${r.avg}%, 위험 ${r.hazard_ratio}배)\n\n`;
     body += `■ 손익 (${r.input.area}평 기준)\n`;
     body += `  월 예상매출 ${f.sales}만 / 영업이익 ${f.op_profit}만 (마진 ${f.margin_pct}%)\n`;
     body += `  손익분기 매출 ${f.be_sales}만 (예상매출의 ${f.be_ratio}%)\n`;
@@ -821,7 +1013,7 @@ function downloadReportTxt() {
     body += `■ 상권 추세: ${tr.direction} (최근 2년 유동 ${tr.foot_change_pct}%, 공실 ${tr.vacancy_change_pp}%p)\n\n`;
     body += `■ 실패 시나리오\n${r.failures.map((x, i) => `  ${i + 1}) ${x.title} — ${x.desc}\n     대비책: ${x.guard}`).join("\n")}\n\n`;
     if (r.alternatives.listings.length)
-      body += `■ 더 안전한 대안 자리\n${r.alternatives.listings.map((l) => `  · ${regionLabel(l.gu)} ${l.gu} ${l.floor} ${l.area_pyeong}평 / 월 ${l.rent_manwon}만 → 3년 생존 ${l.y3}%`).join("\n")}\n\n`;
+      body += `■ 더 안전한 대안 자리\n${r.alternatives.listings.map((l) => `  · ${guFull(l.gu)} ${l.floor} ${l.area_pyeong}평 / 월 ${l.rent_manwon}만 → 3년 생존 ${l.y3}%`).join("\n")}\n\n`;
     if (r.alternatives.industries.length)
       body += `■ 이 자리에 더 맞는 업종: ${r.alternatives.industries.map((x) => `${x.label}(${x.y3}%)`).join(", ")}\n\n`;
   }
@@ -891,7 +1083,7 @@ function renderDeep(r) {
   <div class="dr-hero v-${v.band}">
     <div class="dr-hero-row">
       <span class="dr-vlabel">${esc(v.label)}</span>
-      <span class="dr-vtag">${regionLabel(r.input.gu)} ${esc(r.input.gu)} · ${esc(r.input.industry_label)} · ${r.input.area}평</span>
+      <span class="dr-vtag">${esc(guFull(r.input.gu))} · ${esc(r.input.industry_label)} · ${r.input.area}평</span>
     </div>
     <div class="dr-vsub">${esc(v.sub)}</div>
     <div class="dr-kpis">
@@ -973,7 +1165,7 @@ function renderDeep(r) {
 
   <div class="dr-sec">
     <div class="dr-eyebrow"><span class="dr-no">06</span> 더 나은 대안</div>
-    ${alt.listings.length ? `<div class="alt-h">예산 안 · 3년 생존율이 더 높은 자리</div>${alt.listings.map((l) => `<button type="button" class="alt-row" data-lid="${esc(l.id)}"><span class="alt-main"><b>${regionLabel(l.gu)} ${esc(l.gu)} · ${esc(l.floor)} ${l.area_pyeong}평</b><i>보증 ${w(l.deposit_manwon)} / 월 ${w(l.rent_manwon)}만 · ${esc(l.verdict)}</i></span><span class="alt-y3" style="color:${bandColor(l.band)}">${l.y3}%</span></button>`).join("")}` : `<div class="dr-note">예산 조건에서 이 자리보다 뚜렷이 나은 대안을 찾지 못했습니다 — 현재 자리가 경쟁력 있다는 신호입니다.</div>`}
+    ${alt.listings.length ? `<div class="alt-h">예산 안 · 3년 생존율이 더 높은 자리</div>${alt.listings.map((l) => `<button type="button" class="alt-row" data-lid="${esc(l.id)}"><span class="alt-main"><b>${esc(guFull(l.gu))} · ${esc(l.floor)} ${l.area_pyeong}평</b><i>보증 ${w(l.deposit_manwon)} / 월 ${w(l.rent_manwon)}만 · ${esc(l.verdict)}</i></span><span class="alt-y3" style="color:${bandColor(l.band)}">${l.y3}%</span></button>`).join("")}` : `<div class="dr-note">예산 조건에서 이 자리보다 뚜렷이 나은 대안을 찾지 못했습니다 — 현재 자리가 경쟁력 있다는 신호입니다.</div>`}
     ${alt.industries.length ? `<div class="alt-h">이 자리에 더 맞는 업종</div>${alt.industries.map((x) => `<button type="button" class="alt-row alt-ind" data-key="${esc(x.industry)}"><span class="alt-main"><b>${esc(x.label)}</b><i>같은 자리에서 더 오래 살아남는 업종</i></span><span class="alt-y3" style="color:${bandColor(x.band)}">${x.y3}%</span></button>`).join("")}` : ""}
   </div>
 
@@ -1012,7 +1204,7 @@ function openCheckout(then) {
   state.payThen = then || "view";
   state.payKey = reportKey();
   const p = state.lastPred.input;
-  $("pay-item").textContent = `${regionLabel(p.gu)} ${p.gu} · ${p.industry_label} 생존 리포트`;
+  $("pay-item").textContent = `${guFull(p.gu)} · ${p.industry_label} 생존 리포트`;
   setPayMethod("card");
   openModal("pay-modal");
 }
@@ -1118,7 +1310,7 @@ function closeAbout() {
 $("about-btn").onclick = openAbout;
 $("about-close").onclick = closeAbout;
 $("about-modal").addEventListener("click", (e) => { if (e.target === $("about-modal")) closeAbout(); });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeAbout(); closeBudget(); closePay(); closeAuth(); closePlans(); closeAccount(); } });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeAbout(); closeBudget(); closePay(); closeAuth(); closePlans(); closeAccount(); closeCompare(); } });
 
 /* ---------------- 분석창 접기/펼치기 ---------------- */
 function togglePanel() {
@@ -1185,13 +1377,22 @@ async function loadFit() {
 function renderFit(list) {
   const cur = state.industry;
   const maxv = Math.max(100, ...list.map((r) => r.y3));
-  $("fit-list").innerHTML = list.map((r, i) => `
-    <button type="button" class="fit-row ${r.industry === cur ? "me" : ""}" data-key="${r.industry}">
+  const curY3 = (list.find((r) => r.industry === cur) || {}).y3;
+  const top = list[0];
+  const topBeatsCurrent = top && top.industry !== cur && curY3 != null && top.y3 > curY3;
+  $("fit-list").innerHTML = list.map((r, i) => {
+    const isCur = r.industry === cur;
+    const d = (!isCur && curY3 != null) ? Math.round((r.y3 - curY3) * 10) / 10 : null;   // 현재 업종 대비 %p
+    const delta = d == null ? "" :
+      `<span class="fit-delta ${d > 0 ? "up" : d < 0 ? "down" : ""}">${d > 0 ? "▲" : d < 0 ? "▼" : ""}${Math.abs(d)}%p</span>`;
+    const rec = (i === 0 && topBeatsCurrent) ? ' <em class="fit-rec">추천</em>' : "";
+    return `<button type="button" class="fit-row ${isCur ? "me" : ""} ${i === 0 && topBeatsCurrent ? "top" : ""}" data-key="${r.industry}">
       <span class="fit-rank">${i + 1}</span>
-      <span class="fit-name">${esc(r.label)}${r.industry === cur ? ' <em>현재</em>' : ""}</span>
+      <span class="fit-name">${esc(r.label)}${isCur ? ' <em>현재</em>' : rec}</span>
       <span class="fit-bar-track"><span class="fit-bar" style="width:0;background:${bandColor(r.band)}" data-w="${(r.y3 / maxv) * 100}"></span></span>
-      <span class="fit-pct" style="color:${bandColor(r.band)}">${r.y3}%</span>
-    </button>`).join("");
+      <span class="fit-nums"><span class="fit-pct" style="color:${bandColor(r.band)}">${r.y3}%</span>${delta}</span>
+    </button>`;
+  }).join("");
   playBars($("fit-list"));
   document.querySelectorAll("#fit-list .fit-row").forEach((el) => {
     el.onclick = () => selectIndustry(el.dataset.key);
@@ -1278,7 +1479,7 @@ function renderRec(list) {
     <button type="button" class="rec-row" data-id="${esc(r.id)}">
       <span class="rec-rank">${i + 1}</span>
       <span class="rec-main">
-        <span class="rec-title">${regionLabel(r.gu)} ${esc(r.gu)} · ${esc(r.floor)} ${r.area_pyeong}평</span>
+        <span class="rec-title">${esc(guFull(r.gu))} · ${esc(r.floor)} ${r.area_pyeong}평</span>
         <span class="rec-sub">보증 ${r.deposit_manwon.toLocaleString()} / 월 ${r.rent_manwon.toLocaleString()}만원 · 임대료 ${esc(r.verdict)}</span>
       </span>
       <span class="rec-y3"><b style="color:${bandColor(r.band)}">${r.y3}%</b><i>3년</i></span>
@@ -1342,6 +1543,15 @@ function shareLink() {
 function exportPDF() {
   if (!reportUnlocked()) { openCheckout("pdf"); return; }   // 리포트 포함 저장은 결제/구독 후
   doPrint();
+}
+/* 헤더 PDF 버튼: 미결제 시 자물쇠 표시 (클릭하면 결제창) */
+const DL_SVG = '<svg class="icon" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 12 5 5 5-5"/><path d="M5 21h14"/></svg>';
+function updatePdfLock() {
+  const b = $("pdf-btn"); if (!b) return;
+  const locked = !reportUnlocked();
+  b.classList.toggle("locked", locked);
+  b.innerHTML = (locked ? LOCK_SVG : DL_SVG) + `<span>PDF</span>`;
+  b.title = locked ? "PDF 저장은 결제·구독 후 열려요 (클릭 시 결제창)" : "PDF로 저장(인쇄)";
 }
 function doPrint() {
   // 인쇄 CSS가 '리포트 탭'만 문서 흐름으로 펼쳐 출력 — 화면 탭 상태를 건드리지 않음
@@ -1441,9 +1651,10 @@ function resetSim() {
 const PERSON_SVG = '<svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>';
 const PLANS = {
   free:       { key: "free", type: "personal", name: "Free", priceLabel: "₩0",
-                perks: ["지도·요약·업종추천 무료", "실제 점포·예산추천(기본)", "리포트는 건당 ₩9,900"],
+                perks: ["지도·요약·업종추천 무료", "실제 점포·예산추천(기본)", "리포트는 건당 ₩4,900"],
                 feat: { report: false, save: false, whatif: "basic", csv: false, api: false, seats: 1 } },
   pro:        { key: "pro", type: "personal", name: "개인 Pro", priceLabel: "₩9,900/월",
+                badge: "가장 인기", highlight: true, sub: "리포트 2건이면 본전",
                 perks: ["리포트 무제한 열람", "PDF·TXT 저장", "what-if 시뮬레이터 풀", "예비 창업자용"],
                 feat: { report: true, save: true, whatif: "full", csv: false, api: false, seats: 1 } },
   business:   { key: "business", type: "business", name: "Business", priceLabel: "₩99,000/월",
@@ -1541,15 +1752,17 @@ function openPlans() { renderPlans(); openModal("plans-modal"); }
 function closePlans() { closeModal("plans-modal"); }
 function renderPlans() {
   const cur = state.user ? state.user.plan : null;
+  const ghostPlan = (k) => k === "free" || k === "enterprise";   // 무료·문의는 부차 CTA
   const group = (title, keys) => `
     <div class="plan-col">
       <div class="plan-col-h">${title}</div>
-      ${keys.map((k) => { const p = PLANS[k]; return `
-        <div class="plan-card ${k === cur ? "cur" : ""}">
+      ${keys.map((k) => { const p = PLANS[k]; const isCur = k === cur; return `
+        <div class="plan-card ${isCur ? "cur" : ""} ${p.highlight ? "hot" : ""}">
+          ${p.badge ? `<div class="pc-badge">${esc(p.badge)}</div>` : ""}
           <div class="pc-name">${esc(p.name)}</div>
-          <div class="pc-price">${esc(p.priceLabel)}</div>
+          <div class="pc-price">${esc(p.priceLabel)}${p.sub ? `<span class="pc-sub">${esc(p.sub)}</span>` : ""}</div>
           <ul class="pc-perks">${p.perks.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
-          <button type="button" class="btn ${k === cur ? "ghost" : ""} pc-btn" data-k="${k}" ${k === cur ? "disabled" : ""}>${k === cur ? "현재 플랜" : (p.priceLabel === "문의" ? "문의하기" : "이 플랜 선택")}</button>
+          <button type="button" class="btn ${isCur || ghostPlan(k) ? "ghost" : ""} pc-btn" data-k="${k}" ${isCur ? "disabled" : ""}>${isCur ? "현재 플랜" : (p.priceLabel === "문의" ? "문의하기" : k === "free" ? "무료로 시작" : "이 플랜 선택")}</button>
         </div>`; }).join("")}
     </div>`;
   $("plans-body").innerHTML = group("개인 · B2C", ["free", "pro"]) + group("법인 · B2B", ["business", "enterprise"]);
@@ -1569,7 +1782,7 @@ function exportRecCsv() {
   const rows = state._recList || [];
   if (!rows.length) { toast("먼저 추천을 받아주세요"); return; }
   const head = ["지역", "층", "면적(평)", "보증금(만원)", "월세(만원)", "3년생존율(%)", "임대료판정"];
-  const body = rows.map((r) => [`${regionLabel(r.gu)} ${r.gu}`, r.floor, r.area_pyeong, r.deposit_manwon, r.rent_manwon, r.y3, r.verdict].join(","));
+  const body = rows.map((r) => [`${guFull(r.gu)}`, r.floor, r.area_pyeong, r.deposit_manwon, r.rent_manwon, r.y3, r.verdict].join(","));
   const blob = new Blob(["﻿" + [head.join(","), ...body].join("\n")], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a"); a.href = url; a.download = "SurviMap_추천매물.csv";
@@ -1587,6 +1800,11 @@ $("stores-toggle").onclick = toggleStores;
 document.querySelectorAll("#tabbar .tab").forEach((t) => { t.onclick = () => showTab(t.dataset.tab); });
 $("share-btn").onclick = shareLink;
 $("pdf-btn").onclick = exportPDF;
+$("theme-btn").onclick = toggleTheme;
+$("cmp-open").onclick = openCompare;
+$("cmp-clear").onclick = clearCompare;
+$("compare-close").onclick = closeCompare;
+$("compare-modal").addEventListener("click", (e) => { if (e.target === $("compare-modal")) closeCompare(); });
 $("budget-btn").onclick = openBudget;
 $("budget-close").onclick = closeBudget;
 $("bf-run").onclick = runRecommend;
@@ -1632,6 +1850,6 @@ $("tabbar").addEventListener("keydown", (e) => {
 ["bf-rent", "bf-deposit", "bf-area"].forEach((id) => {
   const el = $(id); if (el) el.addEventListener("keydown", (e) => { if (e.key === "Enter") runRecommend(); });
 });
-window.addEventListener("resize", () => { moveTabIndicator(); refreshSegInds(); });
+window.addEventListener("resize", () => { moveTabIndicator(); refreshSegInds(); wireChipScroll(); });
 
-init().then(() => refreshSegInds());
+init().then(() => { refreshSegInds(); wireChipScroll(); });

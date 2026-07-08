@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-# 수도권(서울+경기) 좌표 범위 — 이 밖(NaN/Inf 포함)은 422로 거절
-LAT = dict(ge=36.8, le=38.4)
-LON = dict(ge=126.2, le=127.9)
+# 대한민국(전국) 좌표 범위 — 이 밖(NaN/Inf 포함)은 422로 거절
+#   위도 33.0(제주)~38.7(최북단), 경도 125.8(서해)~129.8(동해)
+LAT = dict(ge=33.0, le=38.7)
+LON = dict(ge=125.8, le=129.8)
 
 
 class PredictRequest(BaseModel):
