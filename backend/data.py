@@ -274,6 +274,39 @@ DISTRICTS: dict[str, dict] = {**SEOUL_DISTRICTS, **GYEONGGI_DISTRICTS}
 for _region, _units in NATIONAL_DISTRICTS.items():
     DISTRICTS.update(_units)
 
+# ---------------------------------------------------------------------------
+# 실데이터 주입 — 한국부동산원 R-ONE 상업용부동산 임대동향조사(소규모 상가)
+#   임대료(천원/㎡)·공실률(%)을 실측값으로 덮어쓴다. (스냅샷: realdata/rone_lease.json)
+#   나머지 5개 변수(유동/배후/소득/주간/상업집적)는 아직 합성값이다 → mode="hybrid".
+# ---------------------------------------------------------------------------
+from backend.realdata.loader import apply_rone as _apply_rone  # noqa: E402
+
+_RONE_PROV = _apply_rone(DISTRICTS)
+if _RONE_PROV:
+    _q = (_RONE_PROV.get("quarter") or {}).get("rent", "")
+    _qtxt = f"{_q[:4]}년 {int(_q[4:])}분기" if len(_q) == 6 and _q[4:].isdigit() else _q
+    DATA_PROVENANCE["mode"] = "hybrid"
+    DATA_PROVENANCE["note"] = (
+        f"임대료·공실률은 한국부동산원 R-ONE 상업용부동산 임대동향조사(소규모 상가, "
+        f"{_qtxt}) 실측값입니다. 나머지 변수(유동인구·배후수요·소득·주간인구·상업집적)는 "
+        f"아직 서울 상권 경향에 맞춘 합성값이며, 실데이터 연결 시 값만 교체하면 됩니다."
+    )
+    DATA_PROVENANCE["real_fields"] = {
+        "rent": {"real": True, "source": "한국부동산원 R-ONE", "detail": "소규모 상가 임대료(천원/㎡)"},
+        "vacancy": {"real": True, "source": "한국부동산원 R-ONE", "detail": "소규모 상가 공실률(%)"},
+        "foot_traffic": {"real": False}, "resident_support": {"real": False},
+        "income": {"real": False}, "daytime_pop": {"real": False},
+        "commercial_intensity": {"real": False},
+    }
+    DATA_PROVENANCE["rone"] = _RONE_PROV
+    # 소스 목록에서 R-ONE 항목을 '실측 연결됨'으로 갱신
+    for _s in DATA_PROVENANCE["sources"]:
+        if _s.get("org", "").startswith("한국부동산원"):
+            _s["status"] = "연결됨(실측)"
+            _s["quarter"] = _qtxt
+        else:
+            _s.setdefault("status", "예정")
+
 # 지역(시·도) 매핑 — 프론트 그룹핑/필터용
 REGION_OF: dict[str, str] = {
     **{name: "서울" for name in SEOUL_DISTRICTS},

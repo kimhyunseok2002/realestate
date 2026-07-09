@@ -720,6 +720,9 @@ input[type=text]:focus { border-color: var(--brand); box-shadow: var(--ring); }
 .feat .f-k .ico { color: var(--brand); font-size: 14.5px; }
 .feat .f-v { font-family: var(--font-mono); font-size: 21.5px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 4px; }
 .feat .f-u { font-size: 13px; color: var(--ink-2); font-weight: 600; font-family: var(--font-sans); }
+.feat .f-tag { font-size: 9.5px; font-weight: 800; letter-spacing: .2px; color: var(--good); background: var(--good-bg);
+  border: 1px solid #bfe6cf; border-radius: 5px; padding: 1px 5px; margin-left: auto; white-space: nowrap; }
+.prov-real { color: var(--good); }
 
 .report-box { background: linear-gradient(180deg,#f4f8ff,#eef4ff); border: 1px solid #dbe7fb; border-radius: 16px;
   padding: 16px 17px 16px 21px; font-size: 17px; line-height: 1.74; color: var(--ink); white-space: pre-wrap; position: relative; }

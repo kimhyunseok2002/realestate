@@ -618,10 +618,15 @@ function renderResults(p, reveal) {
     <div class="s-item"><div class="s-k">예상 중위 생존기간</div><div class="s-v">${med}</div></div>
     <div class="s-item"><div class="s-k">전국 평균(3년) 대비</div><div class="s-v ${diffCls}">${diffTxt}</div></div>
     <div class="s-item"><div class="s-k">위험비 (HR)</div><div class="s-v">${p.hazard_ratio}</div></div>
-    <div class="s-item"><div class="s-k">실측 코호트</div><div class="s-v">${p.km.n}<span class="u">개 점포</span></div></div>`;
+    <div class="s-item"><div class="s-k">모형 추정 코호트</div><div class="s-v">${p.km.n}<span class="u">개 점포</span></div></div>`;
 
   renderChart(p); renderRisks(p); renderSimilar(p); renderFeatures(p);
-  $("prov").innerHTML = `<span class="ico">${ICONS.info}</span><span><b>데이터:</b> ${esc(p.provenance.note)} 출처(연결 예정): ${esc(p.provenance.sources.map((s) => s.name).join(", "))}</span>`;
+  const prov = p.provenance;
+  const conn = (prov.sources || []).filter((s) => (s.status || "").includes("연결"));
+  const pend = (prov.sources || []).filter((s) => !(s.status || "").includes("연결"));
+  const connTxt = conn.length ? `실측 연결: ${conn.map((s) => s.name + (s.quarter ? ` (${s.quarter})` : "")).join(", ")}` : "";
+  const pendTxt = pend.length ? `연결 예정: ${pend.map((s) => s.name).join(", ")}` : "";
+  $("prov").innerHTML = `<span class="ico">${ICONS.info}</span><span><b>데이터:</b> ${esc(prov.note)}${connTxt ? ` <b class="prov-real">${esc(connTxt)}</b>` : ""}${pendTxt ? ` · ${esc(pendTxt)}` : ""}</span>`;
   state.fitFor = null;
   state.infraFor = null;
   state.deepReport = null;
@@ -733,16 +738,19 @@ function renderSimilar(p) {
 }
 function renderFeatures(p) {
   const f = p.features;
+  const rentReal = f.rent_kwon_m2 != null;
   const items = [
     { k: `경쟁 (반경 ${f.radius_m}m)`, v: f.competition_count, u: "개", i: ICONS.users },
     { k: "유동인구 지수", v: f.foot_traffic, u: "/100", i: ICONS.activity },
-    { k: "공실률", v: f.vacancy, u: "%", i: ICONS.door },
-    { k: "임대료 지수", v: f.rent, u: "/100", i: ICONS.coins },
+    { k: "공실률", v: f.vacancy, u: "%", i: ICONS.door, tag: "R-ONE 실측" },
+    rentReal
+      ? { k: "임대료 (소규모상가)", v: f.rent_kwon_m2, u: "천원/㎡", i: ICONS.coins, tag: "R-ONE 실측" }
+      : { k: "임대료 지수", v: f.rent, u: "/100", i: ICONS.coins },
     { k: "배후수요 지수", v: f.resident, u: "/100", i: ICONS.home },
     { k: "소득 지수", v: f.income, u: "/100", i: ICONS.wallet },
   ];
   $("feat-grid").innerHTML = items.map((it) => `
-    <div class="feat"><div class="f-k"><span class="ico">${it.i}</span>${it.k}</div>
+    <div class="feat"><div class="f-k"><span class="ico">${it.i}</span>${it.k}${it.tag ? `<span class="f-tag">${it.tag}</span>` : ""}</div>
       <div class="f-v">${it.v}<span class="f-u"> ${it.u}</span></div></div>`).join("");
 }
 

@@ -1,0 +1,887 @@
+{
+  "meta": {
+    "source": "한국부동산원 R-ONE 상업용부동산 임대동향조사",
+    "org": "한국부동산원(REB) R-ONE OpenAPI",
+    "category": "소규모 상가",
+    "tables": {
+      "rent": "A_2024_00279",
+      "vacancy": "A_2024_00255"
+    },
+    "unit": {
+      "rent": "천원/㎡",
+      "vacancy": "%"
+    },
+    "quarter": {
+      "rent": "202402",
+      "vacancy": "202402"
+    },
+    "series_years": "2022~현재(분기)",
+    "note": "임대료는 소규모 상가 기준 실측(천원/㎡), 공실률은 실측(%). 자치구 대표값 = 자치구 내 R-ONE 주요상권 평균(basis=sangkwon), 상권이 없으면 해당 시·도 평균(basis=sido)."
+  },
+  "sido": {
+    "전국": {
+      "rent_kwon_m2": 19.43,
+      "vacancy_pct": 8.01
+    },
+    "서울": {
+      "rent_kwon_m2": 50.13,
+      "vacancy_pct": 6.51
+    },
+    "부산": {
+      "rent_kwon_m2": 27.18,
+      "vacancy_pct": 9.5
+    },
+    "대구": {
+      "rent_kwon_m2": 20.77,
+      "vacancy_pct": 9.16
+    },
+    "인천": {
+      "rent_kwon_m2": 21.36,
+      "vacancy_pct": 7.31
+    },
+    "광주": {
+      "rent_kwon_m2": 16.0,
+      "vacancy_pct": 9.16
+    },
+    "대전": {
+      "rent_kwon_m2": 13.31,
+      "vacancy_pct": 8.78
+    },
+    "울산": {
+      "rent_kwon_m2": 14.06,
+      "vacancy_pct": 7.23
+    },
+    "세종": {
+      "rent_kwon_m2": 14.61,
+      "vacancy_pct": 11.29
+    },
+    "경기": {
+      "rent_kwon_m2": 22.66,
+      "vacancy_pct": 8.28
+    },
+    "강원": {
+      "rent_kwon_m2": 12.42,
+      "vacancy_pct": 10.2
+    },
+    "충북": {
+      "rent_kwon_m2": 12.72,
+      "vacancy_pct": 8.6
+    },
+    "충남": {
+      "rent_kwon_m2": 12.32,
+      "vacancy_pct": 7.78
+    },
+    "전북": {
+      "rent_kwon_m2": 9.89,
+      "vacancy_pct": 9.0
+    },
+    "전남": {
+      "rent_kwon_m2": 9.58,
+      "vacancy_pct": 7.55
+    },
+    "경북": {
+      "rent_kwon_m2": 12.66,
+      "vacancy_pct": 7.9
+    },
+    "경남": {
+      "rent_kwon_m2": 12.44,
+      "vacancy_pct": 7.14
+    },
+    "제주": {
+      "rent_kwon_m2": 14.29,
+      "vacancy_pct": 3.76
+    }
+  },
+  "districts": {
+    "강남구": {
+      "rent_kwon_m2": 65.39,
+      "vacancy_pct": 7.02,
+      "basis": "sangkwon",
+      "n_sangkwon": 7,
+      "sangkwon": [
+        "강남대로",
+        "논현역",
+        "도산대로",
+        "신사역",
+        "압구정",
+        "청담",
+        "테헤란로"
+      ]
+    },
+    "서초구": {
+      "rent_kwon_m2": 40.39,
+      "vacancy_pct": 22.04,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "교대역",
+        "남부터미널"
+      ]
+    },
+    "송파구": {
+      "rent_kwon_m2": 32.55,
+      "vacancy_pct": 14.77,
+      "basis": "sangkwon",
+      "n_sangkwon": 3,
+      "sangkwon": [
+        "잠실/송파",
+        "잠실새내역",
+        "가락시장"
+      ]
+    },
+    "마포구": {
+      "rent_kwon_m2": 52.9,
+      "vacancy_pct": 2.66,
+      "basis": "sangkwon",
+      "n_sangkwon": 4,
+      "sangkwon": [
+        "홍대/합정",
+        "동교/연남",
+        "망원역",
+        "공덕역"
+      ]
+    },
+    "용산구": {
+      "rent_kwon_m2": 49.85,
+      "vacancy_pct": 12.23,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "이태원",
+        "용산역"
+      ]
+    },
+    "종로구": {
+      "rent_kwon_m2": 67.95,
+      "vacancy_pct": 3.42,
+      "basis": "sangkwon",
+      "n_sangkwon": 3,
+      "sangkwon": [
+        "광화문",
+        "종로",
+        "혜화동"
+      ]
+    },
+    "중구": {
+      "rent_kwon_m2": 81.85,
+      "vacancy_pct": 4.73,
+      "basis": "sangkwon",
+      "n_sangkwon": 5,
+      "sangkwon": [
+        "명동",
+        "을지로",
+        "시청",
+        "남대문",
+        "충무로"
+      ]
+    },
+    "성동구": {
+      "rent_kwon_m2": 49.02,
+      "vacancy_pct": 5.79,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "왕십리",
+        "뚝섬"
+      ]
+    },
+    "광진구": {
+      "rent_kwon_m2": 39.43,
+      "vacancy_pct": 6.51,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "건대입구",
+        "군자"
+      ]
+    },
+    "영등포구": {
+      "rent_kwon_m2": 36.35,
+      "vacancy_pct": 5.46,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "영등포역",
+        "당산역"
+      ]
+    },
+    "관악구": {
+      "rent_kwon_m2": 66.6,
+      "vacancy_pct": 3.6,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "서울대입구역",
+        "신림역"
+      ]
+    },
+    "동작구": {
+      "rent_kwon_m2": 35.4,
+      "vacancy_pct": 5.8,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "노량진",
+        "사당"
+      ]
+    },
+    "은평구": {
+      "rent_kwon_m2": 40.81,
+      "vacancy_pct": 20.24,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "연신내",
+        "불광역"
+      ]
+    },
+    "노원구": {
+      "rent_kwon_m2": 26.27,
+      "vacancy_pct": 2.62,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "상계역"
+      ]
+    },
+    "강서구": {
+      "rent_kwon_m2": 28.67,
+      "vacancy_pct": 11.72,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "화곡"
+      ]
+    },
+    "수원시": {
+      "rent_kwon_m2": 36.62,
+      "vacancy_pct": 9.06,
+      "basis": "sangkwon",
+      "n_sangkwon": 3,
+      "sangkwon": [
+        "수원역",
+        "인계동",
+        "팔달문로터리"
+      ]
+    },
+    "성남시": {
+      "rent_kwon_m2": 36.15,
+      "vacancy_pct": 9.62,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "모란",
+        "성남구시가지"
+      ]
+    },
+    "고양시": {
+      "rent_kwon_m2": 19.63,
+      "vacancy_pct": 8.28,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "고양시청",
+        "탄현역"
+      ]
+    },
+    "용인시": {
+      "rent_kwon_m2": 24.34,
+      "vacancy_pct": 5.9,
+      "basis": "sangkwon",
+      "n_sangkwon": 3,
+      "sangkwon": [
+        "용인수지",
+        "기흥역",
+        "김량장동"
+      ]
+    },
+    "부천시": {
+      "rent_kwon_m2": 25.74,
+      "vacancy_pct": 22.96,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "부천역"
+      ]
+    },
+    "안산시": {
+      "rent_kwon_m2": 22.66,
+      "vacancy_pct": 8.28,
+      "basis": "sido",
+      "n_sangkwon": 0,
+      "sangkwon": []
+    },
+    "안양시": {
+      "rent_kwon_m2": 31.74,
+      "vacancy_pct": 15.35,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "안양역",
+        "인덕원"
+      ]
+    },
+    "남양주시": {
+      "rent_kwon_m2": 22.66,
+      "vacancy_pct": 8.28,
+      "basis": "sido",
+      "n_sangkwon": 0,
+      "sangkwon": []
+    },
+    "화성시": {
+      "rent_kwon_m2": 24.74,
+      "vacancy_pct": 8.28,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "병점역"
+      ]
+    },
+    "평택시": {
+      "rent_kwon_m2": 19.37,
+      "vacancy_pct": 4.44,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "평택역",
+        "신장/지산/서정"
+      ]
+    },
+    "의정부시": {
+      "rent_kwon_m2": 34.66,
+      "vacancy_pct": 4.1,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "의정부역"
+      ]
+    },
+    "시흥시": {
+      "rent_kwon_m2": 22.66,
+      "vacancy_pct": 8.28,
+      "basis": "sido",
+      "n_sangkwon": 0,
+      "sangkwon": []
+    },
+    "파주시": {
+      "rent_kwon_m2": 24.76,
+      "vacancy_pct": 7.1,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "파주시청"
+      ]
+    },
+    "김포시": {
+      "rent_kwon_m2": 22.66,
+      "vacancy_pct": 8.28,
+      "basis": "sido",
+      "n_sangkwon": 0,
+      "sangkwon": []
+    },
+    "광명시": {
+      "rent_kwon_m2": 37.9,
+      "vacancy_pct": 23.71,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "광명철산"
+      ]
+    },
+    "광주시": {
+      "rent_kwon_m2": 23.41,
+      "vacancy_pct": 0.77,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "광주시가지"
+      ]
+    },
+    "군포시": {
+      "rent_kwon_m2": 22.66,
+      "vacancy_pct": 8.28,
+      "basis": "sido",
+      "n_sangkwon": 0,
+      "sangkwon": []
+    },
+    "오산시": {
+      "rent_kwon_m2": 19.67,
+      "vacancy_pct": 3.85,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "오산시청"
+      ]
+    },
+    "이천시": {
+      "rent_kwon_m2": 15.93,
+      "vacancy_pct": 8.28,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "이천종합터미널"
+      ]
+    },
+    "양주시": {
+      "rent_kwon_m2": 22.66,
+      "vacancy_pct": 8.28,
+      "basis": "sido",
+      "n_sangkwon": 0,
+      "sangkwon": []
+    },
+    "안성시": {
+      "rent_kwon_m2": 12.78,
+      "vacancy_pct": 11.22,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "안성시장"
+      ]
+    },
+    "구리시": {
+      "rent_kwon_m2": 36.48,
+      "vacancy_pct": 8.28,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "구리역"
+      ]
+    },
+    "포천시": {
+      "rent_kwon_m2": 14.34,
+      "vacancy_pct": 10.2,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "포천시외버스터미널"
+      ]
+    },
+    "의왕시": {
+      "rent_kwon_m2": 22.66,
+      "vacancy_pct": 8.28,
+      "basis": "sido",
+      "n_sangkwon": 0,
+      "sangkwon": []
+    },
+    "하남시": {
+      "rent_kwon_m2": 35.47,
+      "vacancy_pct": 12.57,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "하남원도심"
+      ]
+    },
+    "여주시": {
+      "rent_kwon_m2": 17.3,
+      "vacancy_pct": 21.01,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "여주시청"
+      ]
+    },
+    "동두천시": {
+      "rent_kwon_m2": 13.55,
+      "vacancy_pct": 13.84,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "동두천중앙로"
+      ]
+    },
+    "과천시": {
+      "rent_kwon_m2": 22.66,
+      "vacancy_pct": 8.28,
+      "basis": "sido",
+      "n_sangkwon": 0,
+      "sangkwon": []
+    },
+    "양평군": {
+      "rent_kwon_m2": 22.66,
+      "vacancy_pct": 8.28,
+      "basis": "sido",
+      "n_sangkwon": 0,
+      "sangkwon": []
+    },
+    "가평군": {
+      "rent_kwon_m2": 22.66,
+      "vacancy_pct": 8.28,
+      "basis": "sido",
+      "n_sangkwon": 0,
+      "sangkwon": []
+    },
+    "연천군": {
+      "rent_kwon_m2": 22.66,
+      "vacancy_pct": 8.28,
+      "basis": "sido",
+      "n_sangkwon": 0,
+      "sangkwon": []
+    },
+    "인천": {
+      "rent_kwon_m2": 22.6,
+      "vacancy_pct": 8.38,
+      "basis": "sangkwon",
+      "n_sangkwon": 4,
+      "sangkwon": [
+        "부평",
+        "주안",
+        "구월",
+        "신포동"
+      ]
+    },
+    "연수구": {
+      "rent_kwon_m2": 21.36,
+      "vacancy_pct": 7.31,
+      "basis": "sido",
+      "n_sangkwon": 0,
+      "sangkwon": []
+    },
+    "남동구": {
+      "rent_kwon_m2": 18.58,
+      "vacancy_pct": 6.51,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "구월",
+        "간석오거리"
+      ]
+    },
+    "부산": {
+      "rent_kwon_m2": 34.42,
+      "vacancy_pct": 12.01,
+      "basis": "sangkwon",
+      "n_sangkwon": 4,
+      "sangkwon": [
+        "서면/전포",
+        "남포동",
+        "부산역",
+        "부전시장"
+      ]
+    },
+    "해운대구": {
+      "rent_kwon_m2": 30.32,
+      "vacancy_pct": 9.08,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "해운대",
+        "송정해수욕장"
+      ]
+    },
+    "수영구": {
+      "rent_kwon_m2": 27.06,
+      "vacancy_pct": 12.18,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "광안리",
+        "수영역"
+      ]
+    },
+    "대구": {
+      "rent_kwon_m2": 17.72,
+      "vacancy_pct": 13.32,
+      "basis": "sangkwon",
+      "n_sangkwon": 3,
+      "sangkwon": [
+        "동성로중심",
+        "서문시장/청라언덕",
+        "동대구"
+      ]
+    },
+    "수성구": {
+      "rent_kwon_m2": 21.39,
+      "vacancy_pct": 15.73,
+      "basis": "sangkwon",
+      "n_sangkwon": 3,
+      "sangkwon": [
+        "수성범어",
+        "들안길",
+        "시지지구"
+      ]
+    },
+    "울산": {
+      "rent_kwon_m2": 14.12,
+      "vacancy_pct": 7.21,
+      "basis": "sangkwon",
+      "n_sangkwon": 4,
+      "sangkwon": [
+        "삼산동",
+        "신정동",
+        "성남옥교동",
+        "전하동"
+      ]
+    },
+    "포항시": {
+      "rent_kwon_m2": 13.06,
+      "vacancy_pct": 10.71,
+      "basis": "sangkwon",
+      "n_sangkwon": 3,
+      "sangkwon": [
+        "포항도심",
+        "영일대해수욕장",
+        "양덕동"
+      ]
+    },
+    "구미시": {
+      "rent_kwon_m2": 14.28,
+      "vacancy_pct": 6.94,
+      "basis": "sangkwon",
+      "n_sangkwon": 3,
+      "sangkwon": [
+        "구미역",
+        "구미산업단지",
+        "구미선주원남동"
+      ]
+    },
+    "경주시": {
+      "rent_kwon_m2": 20.87,
+      "vacancy_pct": 29.31,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "경주도심"
+      ]
+    },
+    "창원시": {
+      "rent_kwon_m2": 14.54,
+      "vacancy_pct": 9.34,
+      "basis": "sangkwon",
+      "n_sangkwon": 6,
+      "sangkwon": [
+        "창원시청",
+        "창원역",
+        "창원월영동",
+        "창원의창구청",
+        "마산동서동",
+        "마산역버스터미널"
+      ]
+    },
+    "김해시": {
+      "rent_kwon_m2": 11.47,
+      "vacancy_pct": 4.46,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "김해시청/동상시장",
+        "활천동"
+      ]
+    },
+    "진주시": {
+      "rent_kwon_m2": 13.99,
+      "vacancy_pct": 15.67,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "진주중앙시장",
+        "평거동"
+      ]
+    },
+    "대전": {
+      "rent_kwon_m2": 15.06,
+      "vacancy_pct": 12.96,
+      "basis": "sangkwon",
+      "n_sangkwon": 3,
+      "sangkwon": [
+        "원도심",
+        "서대전네거리",
+        "복합터미널"
+      ]
+    },
+    "유성구": {
+      "rent_kwon_m2": 14.33,
+      "vacancy_pct": 6.19,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "유성온천역",
+        "노은"
+      ]
+    },
+    "세종시": {
+      "rent_kwon_m2": 13.03,
+      "vacancy_pct": 6.68,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "조치원"
+      ]
+    },
+    "청주시": {
+      "rent_kwon_m2": 17.52,
+      "vacancy_pct": 9.64,
+      "basis": "sangkwon",
+      "n_sangkwon": 3,
+      "sangkwon": [
+        "청주성안길",
+        "충북대학교",
+        "봉명사거리"
+      ]
+    },
+    "충주시": {
+      "rent_kwon_m2": 9.9,
+      "vacancy_pct": 8.48,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "충주연수칠금",
+        "충주자유시장"
+      ]
+    },
+    "천안시": {
+      "rent_kwon_m2": 16.33,
+      "vacancy_pct": 8.95,
+      "basis": "sangkwon",
+      "n_sangkwon": 3,
+      "sangkwon": [
+        "천안역",
+        "천안종합버스터미널",
+        "두정"
+      ]
+    },
+    "아산시": {
+      "rent_kwon_m2": 15.72,
+      "vacancy_pct": 7.01,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "아산온양",
+        "배방읍"
+      ]
+    },
+    "광주": {
+      "rent_kwon_m2": 16.94,
+      "vacancy_pct": 12.89,
+      "basis": "sangkwon",
+      "n_sangkwon": 4,
+      "sangkwon": [
+        "금남로/충장로",
+        "상무지구",
+        "전남대",
+        "용봉동"
+      ]
+    },
+    "광산구": {
+      "rent_kwon_m2": 17.99,
+      "vacancy_pct": 12.09,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "송정동지구",
+        "첨단1지구"
+      ]
+    },
+    "전주시": {
+      "rent_kwon_m2": 12.04,
+      "vacancy_pct": 6.36,
+      "basis": "sangkwon",
+      "n_sangkwon": 4,
+      "sangkwon": [
+        "전주동부",
+        "전주서부",
+        "송천동",
+        "영등부송"
+      ]
+    },
+    "익산시": {
+      "rent_kwon_m2": 8.23,
+      "vacancy_pct": 12.16,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "익산역"
+      ]
+    },
+    "군산시": {
+      "rent_kwon_m2": 7.53,
+      "vacancy_pct": 13.7,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "군산구도심"
+      ]
+    },
+    "여수시": {
+      "rent_kwon_m2": 11.94,
+      "vacancy_pct": 5.87,
+      "basis": "sangkwon",
+      "n_sangkwon": 4,
+      "sangkwon": [
+        "여수여문",
+        "여수원도심",
+        "여수학동",
+        "무선지구"
+      ]
+    },
+    "순천시": {
+      "rent_kwon_m2": 13.04,
+      "vacancy_pct": 15.09,
+      "basis": "sangkwon",
+      "n_sangkwon": 3,
+      "sangkwon": [
+        "순천법원",
+        "순천원도심",
+        "조례"
+      ]
+    },
+    "목포시": {
+      "rent_kwon_m2": 9.17,
+      "vacancy_pct": 13.03,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "목포구도심",
+        "하당신도심"
+      ]
+    },
+    "춘천시": {
+      "rent_kwon_m2": 14.77,
+      "vacancy_pct": 8.95,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "춘천명동"
+      ]
+    },
+    "원주시": {
+      "rent_kwon_m2": 16.72,
+      "vacancy_pct": 11.08,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "원주중앙/일산"
+      ]
+    },
+    "강릉시": {
+      "rent_kwon_m2": 13.93,
+      "vacancy_pct": 8.37,
+      "basis": "sangkwon",
+      "n_sangkwon": 2,
+      "sangkwon": [
+        "강릉교동",
+        "강릉중부"
+      ]
+    },
+    "제주시": {
+      "rent_kwon_m2": 14.51,
+      "vacancy_pct": 5.52,
+      "basis": "sangkwon",
+      "n_sangkwon": 3,
+      "sangkwon": [
+        "노형오거리",
+        "중앙사거리",
+        "광양사거리"
+      ]
+    },
+    "서귀포시": {
+      "rent_kwon_m2": 16.62,
+      "vacancy_pct": 2.81,
+      "basis": "sangkwon",
+      "n_sangkwon": 1,
+      "sangkwon": [
+        "서귀포도심"
+      ]
+    }
+  }
+}
