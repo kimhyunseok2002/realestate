@@ -1,0 +1,611 @@
+{
+  "meta": {
+    "source": "통계청 SGIS 통계지리정보 — 인구·사업체(종사자)",
+    "org": "통계청 SGIS OpenAPI (sgisapi.mods.go.kr)",
+    "service": "stats/population.json",
+    "year": "2023",
+    "unit": "인구(명)·종사자(명)",
+    "fields": {
+      "resident": "tot_ppltn",
+      "daytime": "employee_cnt"
+    },
+    "note": "자치구 대표값 = SGIS 시군구(특례시는 구 합산) 인구·종사자. SGIS 자체 행정코드/특례시 구분할 때문에 시·도 범위 내 이름 매칭으로 집계."
+  },
+  "districts": {
+    "가평군": {
+      "population": 59893,
+      "employees": 31795,
+      "n_match": 1,
+      "matched": [
+        "가평군"
+      ]
+    },
+    "강릉시": {
+      "population": 213786,
+      "employees": 99514,
+      "n_match": 1,
+      "matched": [
+        "강릉시"
+      ]
+    },
+    "경주시": {
+      "population": 259505,
+      "employees": 135939,
+      "n_match": 1,
+      "matched": [
+        "경주시"
+      ]
+    },
+    "고양시": {
+      "population": 1047592,
+      "employees": 385402,
+      "n_match": 3,
+      "matched": [
+        "고양시 덕양구",
+        "고양시 일산동구",
+        "고양시 일산서구"
+      ]
+    },
+    "과천시": {
+      "population": 76824,
+      "employees": 48060,
+      "n_match": 1,
+      "matched": [
+        "과천시"
+      ]
+    },
+    "광명시": {
+      "population": 275397,
+      "employees": 107401,
+      "n_match": 1,
+      "matched": [
+        "광명시"
+      ]
+    },
+    "광산구": {
+      "population": 417491,
+      "employees": 178233,
+      "n_match": 1,
+      "matched": [
+        "광산구"
+      ]
+    },
+    "광주": {
+      "population": 1457090,
+      "employees": 661840,
+      "n_match": 5,
+      "matched": [
+        "동구",
+        "서구",
+        "남구",
+        "북구",
+        "광산구"
+      ]
+    },
+    "광주시": {
+      "population": 394667,
+      "employees": 159320,
+      "n_match": 1,
+      "matched": [
+        "광주시"
+      ]
+    },
+    "구리시": {
+      "population": 183048,
+      "employees": 65489,
+      "n_match": 1,
+      "matched": [
+        "구리시"
+      ]
+    },
+    "구미시": {
+      "population": 407458,
+      "employees": 203804,
+      "n_match": 1,
+      "matched": [
+        "구미시"
+      ]
+    },
+    "군산시": {
+      "population": 265764,
+      "employees": 111854,
+      "n_match": 1,
+      "matched": [
+        "군산시"
+      ]
+    },
+    "군포시": {
+      "population": 263939,
+      "employees": 111527,
+      "n_match": 1,
+      "matched": [
+        "군포시"
+      ]
+    },
+    "김포시": {
+      "population": 496323,
+      "employees": 217893,
+      "n_match": 1,
+      "matched": [
+        "김포시"
+      ]
+    },
+    "김해시": {
+      "population": 548672,
+      "employees": 252510,
+      "n_match": 1,
+      "matched": [
+        "김해시"
+      ]
+    },
+    "남동구": {
+      "population": 500087,
+      "employees": 246332,
+      "n_match": 1,
+      "matched": [
+        "남동구"
+      ]
+    },
+    "남양주시": {
+      "population": 716123,
+      "employees": 215480,
+      "n_match": 1,
+      "matched": [
+        "남양주시"
+      ]
+    },
+    "대구": {
+      "population": 2379188,
+      "employees": 999816,
+      "n_match": 9,
+      "matched": [
+        "중구",
+        "동구",
+        "서구",
+        "남구",
+        "북구",
+        "수성구",
+        "달서구",
+        "달성군",
+        "군위군"
+      ]
+    },
+    "대전": {
+      "population": 1470336,
+      "employees": 694651,
+      "n_match": 5,
+      "matched": [
+        "동구",
+        "중구",
+        "서구",
+        "유성구",
+        "대덕구"
+      ]
+    },
+    "동두천시": {
+      "population": 91301,
+      "employees": 30259,
+      "n_match": 1,
+      "matched": [
+        "동두천시"
+      ]
+    },
+    "목포시": {
+      "population": 217950,
+      "employees": 85488,
+      "n_match": 1,
+      "matched": [
+        "목포시"
+      ]
+    },
+    "부산": {
+      "population": 3279604,
+      "employees": 1516448,
+      "n_match": 16,
+      "matched": [
+        "중구",
+        "서구",
+        "동구",
+        "영도구",
+        "부산진구",
+        "동래구",
+        "남구",
+        "북구",
+        "해운대구",
+        "사하구",
+        "금정구",
+        "강서구",
+        "연제구",
+        "수영구",
+        "사상구",
+        "기장군"
+      ]
+    },
+    "부천시": {
+      "population": 803512,
+      "employees": 308335,
+      "n_match": 3,
+      "matched": [
+        "부천시 원미구",
+        "부천시 소사구",
+        "부천시 오정구"
+      ]
+    },
+    "서귀포시": {
+      "population": 181214,
+      "employees": 82345,
+      "n_match": 1,
+      "matched": [
+        "서귀포시"
+      ]
+    },
+    "성남시": {
+      "population": 903116,
+      "employees": 546642,
+      "n_match": 3,
+      "matched": [
+        "성남시 수정구",
+        "성남시 중원구",
+        "성남시 분당구"
+      ]
+    },
+    "세종시": {
+      "population": 386261,
+      "employees": 161725,
+      "n_match": 1,
+      "matched": [
+        "세종시"
+      ]
+    },
+    "수성구": {
+      "population": 396295,
+      "employees": 141118,
+      "n_match": 1,
+      "matched": [
+        "수성구"
+      ]
+    },
+    "수영구": {
+      "population": 170220,
+      "employees": 64591,
+      "n_match": 1,
+      "matched": [
+        "수영구"
+      ]
+    },
+    "수원시": {
+      "population": 1226362,
+      "employees": 476097,
+      "n_match": 4,
+      "matched": [
+        "수원시 장안구",
+        "수원시 권선구",
+        "수원시 팔달구",
+        "수원시 영통구"
+      ]
+    },
+    "순천시": {
+      "population": 272041,
+      "employees": 112299,
+      "n_match": 1,
+      "matched": [
+        "순천시"
+      ]
+    },
+    "시흥시": {
+      "population": 568455,
+      "employees": 239260,
+      "n_match": 1,
+      "matched": [
+        "시흥시"
+      ]
+    },
+    "아산시": {
+      "population": 376632,
+      "employees": 201304,
+      "n_match": 1,
+      "matched": [
+        "아산시"
+      ]
+    },
+    "안산시": {
+      "population": 709147,
+      "employees": 323876,
+      "n_match": 2,
+      "matched": [
+        "안산시 상록구",
+        "안산시 단원구"
+      ]
+    },
+    "안성시": {
+      "population": 210390,
+      "employees": 116818,
+      "n_match": 1,
+      "matched": [
+        "안성시"
+      ]
+    },
+    "안양시": {
+      "population": 537159,
+      "employees": 276857,
+      "n_match": 2,
+      "matched": [
+        "안양시 만안구",
+        "안양시 동안구"
+      ]
+    },
+    "양주시": {
+      "population": 269641,
+      "employees": 104222,
+      "n_match": 1,
+      "matched": [
+        "양주시"
+      ]
+    },
+    "양평군": {
+      "population": 119320,
+      "employees": 39842,
+      "n_match": 1,
+      "matched": [
+        "양평군"
+      ]
+    },
+    "여수시": {
+      "population": 267392,
+      "employees": 147018,
+      "n_match": 1,
+      "matched": [
+        "여수시"
+      ]
+    },
+    "여주시": {
+      "population": 116045,
+      "employees": 57074,
+      "n_match": 1,
+      "matched": [
+        "여주시"
+      ]
+    },
+    "연수구": {
+      "population": 408476,
+      "employees": 154927,
+      "n_match": 1,
+      "matched": [
+        "연수구"
+      ]
+    },
+    "연천군": {
+      "population": 41007,
+      "employees": 17462,
+      "n_match": 1,
+      "matched": [
+        "연천군"
+      ]
+    },
+    "오산시": {
+      "population": 243832,
+      "employees": 79080,
+      "n_match": 1,
+      "matched": [
+        "오산시"
+      ]
+    },
+    "용인시": {
+      "population": 1066979,
+      "employees": 417069,
+      "n_match": 3,
+      "matched": [
+        "용인시 처인구",
+        "용인시 기흥구",
+        "용인시 수지구"
+      ]
+    },
+    "울산": {
+      "population": 1107431,
+      "employees": 541419,
+      "n_match": 5,
+      "matched": [
+        "중구",
+        "남구",
+        "동구",
+        "북구",
+        "울주군"
+      ]
+    },
+    "원주시": {
+      "population": 364912,
+      "employees": 168998,
+      "n_match": 1,
+      "matched": [
+        "원주시"
+      ]
+    },
+    "유성구": {
+      "population": 379100,
+      "employees": 216587,
+      "n_match": 1,
+      "matched": [
+        "유성구"
+      ]
+    },
+    "의왕시": {
+      "population": 154788,
+      "employees": 61639,
+      "n_match": 1,
+      "matched": [
+        "의왕시"
+      ]
+    },
+    "의정부시": {
+      "population": 458966,
+      "employees": 136611,
+      "n_match": 1,
+      "matched": [
+        "의정부시"
+      ]
+    },
+    "이천시": {
+      "population": 228695,
+      "employees": 143198,
+      "n_match": 1,
+      "matched": [
+        "이천시"
+      ]
+    },
+    "익산시": {
+      "population": 274350,
+      "employees": 120523,
+      "n_match": 1,
+      "matched": [
+        "익산시"
+      ]
+    },
+    "인천": {
+      "population": 3025950,
+      "employees": 1225102,
+      "n_match": 10,
+      "matched": [
+        "중구",
+        "동구",
+        "연수구",
+        "남동구",
+        "부평구",
+        "계양구",
+        "서구",
+        "미추홀구",
+        "강화군",
+        "옹진군"
+      ]
+    },
+    "전주시": {
+      "population": 658032,
+      "employees": 264474,
+      "n_match": 2,
+      "matched": [
+        "전주시 완산구",
+        "전주시 덕진구"
+      ]
+    },
+    "제주시": {
+      "population": 495553,
+      "employees": 239524,
+      "n_match": 1,
+      "matched": [
+        "제주시"
+      ]
+    },
+    "진주시": {
+      "population": 348272,
+      "employees": 149933,
+      "n_match": 1,
+      "matched": [
+        "진주시"
+      ]
+    },
+    "창원시": {
+      "population": 1007142,
+      "employees": 472021,
+      "n_match": 5,
+      "matched": [
+        "창원시 의창구",
+        "창원시 성산구",
+        "창원시 마산합포구",
+        "창원시 마산회원구",
+        "창원시 진해구"
+      ]
+    },
+    "천안시": {
+      "population": 689851,
+      "employees": 318142,
+      "n_match": 2,
+      "matched": [
+        "천안시 동남구",
+        "천안시 서북구"
+      ]
+    },
+    "청주시": {
+      "population": 870358,
+      "employees": 396452,
+      "n_match": 4,
+      "matched": [
+        "청주시 상당구",
+        "청주시 서원구",
+        "청주시 흥덕구",
+        "청주시 청원구"
+      ]
+    },
+    "춘천시": {
+      "population": 292504,
+      "employees": 128055,
+      "n_match": 1,
+      "matched": [
+        "춘천시"
+      ]
+    },
+    "충주시": {
+      "population": 215990,
+      "employees": 110575,
+      "n_match": 1,
+      "matched": [
+        "충주시"
+      ]
+    },
+    "파주시": {
+      "population": 495339,
+      "employees": 231530,
+      "n_match": 1,
+      "matched": [
+        "파주시"
+      ]
+    },
+    "평택시": {
+      "population": 605678,
+      "employees": 282259,
+      "n_match": 1,
+      "matched": [
+        "평택시"
+      ]
+    },
+    "포천시": {
+      "population": 157111,
+      "employees": 103882,
+      "n_match": 1,
+      "matched": [
+        "포천시"
+      ]
+    },
+    "포항시": {
+      "population": 493394,
+      "employees": 231554,
+      "n_match": 2,
+      "matched": [
+        "포항시 남구",
+        "포항시 북구"
+      ]
+    },
+    "하남시": {
+      "population": 320562,
+      "employees": 120608,
+      "n_match": 1,
+      "matched": [
+        "하남시"
+      ]
+    },
+    "해운대구": {
+      "population": 370849,
+      "employees": 153999,
+      "n_match": 1,
+      "matched": [
+        "해운대구"
+      ]
+    },
+    "화성시": {
+      "population": 974156,
+      "employees": 598568,
+      "n_match": 1,
+      "matched": [
+        "화성시"
+      ]
+    }
+  }
+}

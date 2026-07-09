@@ -24,7 +24,7 @@ import urllib.request
 from . import data
 
 # 모델: 리포트=번역 작업이라 경량·저가 모델을 기본으로. 환경변수로 교체 가능.
-MODEL = os.environ.get("SANGKWON_LLM_MODEL", "gpt-4o-mini")
+MODEL = os.environ.get("SANGKWON_LLM_MODEL", "gpt-5.5")
 TIMEOUT = int(os.environ.get("SANGKWON_LLM_TIMEOUT", "60"))
 # 엔드포인트(호환 게이트웨이/프록시로도 교체 가능)
 OPENAI_URL = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/") + "/chat/completions"

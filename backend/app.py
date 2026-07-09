@@ -31,7 +31,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend import data, geocode, listings, llm, report, survival
+from backend import data, geocode, listings, llm, report, sangga, survival
 from backend.schemas import PredictRequest, ReportRequest, WhatIfRequest
 
 app = FastAPI(title="상권 생존 예측 서비스", version="1.0")
@@ -168,7 +168,7 @@ def api_whatif_sim(gu: str = Query(...), industry: str = Query(...),
 
 
 # ---------------------------------------------------------------------------
-# 실제 점포 (OSM)
+# 실제 점포 — 상가정보(공공데이터포털) 우선, 실패 시 OSM 폴백
 # ---------------------------------------------------------------------------
 @app.get("/api/stores")
 def api_stores(lat: float = Query(..., ge=33.0, le=38.7),
@@ -176,8 +176,15 @@ def api_stores(lat: float = Query(..., ge=33.0, le=38.7),
                industry: str = Query(...), radius: int = Query(700, ge=100, le=2000)):
     if industry not in data.INDUSTRIES:
         raise HTTPException(400, f"알 수 없는 업종: {industry}")
-    return {"industry": industry, "radius": radius,
-            "stores": geocode.nearby_stores(lat, lon, industry, radius)}
+    # 1차: 소상공인시장진흥공단 상가정보 (국내 상가 커버리지 우수, 동종 총계 제공)
+    res = sangga.stores_in_radius(lat, lon, industry, radius=radius, want_list=True)
+    if res is not None:
+        return {"industry": industry, "radius": radius, "source": res["source"],
+                "stdr_ym": res["stdr_ym"], "total": res["total"], "stores": res["stores"]}
+    # 폴백: OpenStreetMap (키 없음·API 오류 시)
+    stores = geocode.nearby_stores(lat, lon, industry, radius)
+    return {"industry": industry, "radius": radius, "source": "osm",
+            "stdr_ym": None, "total": len(stores), "stores": stores}
 
 
 # ---------------------------------------------------------------------------
@@ -210,6 +217,11 @@ def api_predict(req: PredictRequest):
     except ValueError as e:
         raise HTTPException(400, str(e))
     result["resolved_gu"] = resolved
+    # 실측 경쟁밀도(상가정보) — 표시용. 모델 수식은 합성 count 그대로 사용(비치명).
+    rc = sangga.competition(req.lat, req.lon, req.industry,
+                            radius=result["features"]["radius_m"])
+    if rc is not None:
+        result["real_competition"] = rc
     return result
 
 
@@ -236,7 +248,7 @@ def api_deep_report(gu: str = Query(...), industry: str = Query(...),
                     capital: int = Query(0, ge=0), target: int = Query(0, ge=0)):
     """유료 심층 리포트 — 손익·판정·대안·실패시나리오·임대료·추세·코호트."""
     try:
-        return report.deep_report(
+        result = report.deep_report(
             gu, industry, lat, lon, area,
             rent=(rent or None), deposit=(None if deposit < 0 else deposit),
             premium=(None if premium < 0 else premium), maint=(maint or None),
@@ -244,6 +256,11 @@ def api_deep_report(gu: str = Query(...), industry: str = Query(...),
         )
     except ValueError as e:
         raise HTTPException(400, str(e))
+    # 실측 경쟁밀도(상가정보) — 코호트 섹션 표시용(비치명)
+    rc = sangga.competition(lat, lon, industry, radius=result["cohort"]["radius_m"])
+    if rc is not None:
+        result["cohort"]["real_competition"] = rc
+    return result
 
 
 @app.post("/api/whatif")

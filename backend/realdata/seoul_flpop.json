@@ -1,0 +1,214 @@
+{
+  "meta": {
+    "source": "우리마을가게 상권분석서비스(길단위인구-행정동)",
+    "org": "서울 열린데이터광장 OpenAPI",
+    "service": "VwsmAdstrdFlpopW",
+    "unit": "분기 유동인구(명) — 행정동 합계를 자치구로 집계",
+    "quarter": "20261",
+    "quarter_txt": "2026년 1분기",
+    "series_years": "2021~현재(분기)",
+    "note": "자치구 대표 유동인구 = 자치구에 속한 행정동(ADSTRD_CD 앞 5자리=자치구코드) TOT_FLPOP_CO 합계. 25개 자치구 전체 수록(서비스 예측단위에 있는 자치구만 주입)."
+  },
+  "districts": {
+    "강남구": {
+      "flpop_tot": 145387597,
+      "ml_tot": 70197206,
+      "fml_tot": 75190393,
+      "daytime_share": 0.5097,
+      "dong_count": 22,
+      "basis": "flpop"
+    },
+    "강동구": {
+      "flpop_tot": 106404602,
+      "ml_tot": 49466579,
+      "fml_tot": 56938019,
+      "daytime_share": 0.4331,
+      "dong_count": 18,
+      "basis": "flpop"
+    },
+    "강북구": {
+      "flpop_tot": 88068471,
+      "ml_tot": 40441020,
+      "fml_tot": 47627455,
+      "daytime_share": 0.4341,
+      "dong_count": 13,
+      "basis": "flpop"
+    },
+    "강서구": {
+      "flpop_tot": 114205877,
+      "ml_tot": 53362592,
+      "fml_tot": 60843281,
+      "daytime_share": 0.4338,
+      "dong_count": 20,
+      "basis": "flpop"
+    },
+    "관악구": {
+      "flpop_tot": 126852941,
+      "ml_tot": 62443232,
+      "fml_tot": 64409712,
+      "daytime_share": 0.4225,
+      "dong_count": 21,
+      "basis": "flpop"
+    },
+    "광진구": {
+      "flpop_tot": 88590863,
+      "ml_tot": 41062704,
+      "fml_tot": 47528158,
+      "daytime_share": 0.4276,
+      "dong_count": 15,
+      "basis": "flpop"
+    },
+    "구로구": {
+      "flpop_tot": 79329373,
+      "ml_tot": 38022523,
+      "fml_tot": 41306855,
+      "daytime_share": 0.4409,
+      "dong_count": 16,
+      "basis": "flpop"
+    },
+    "금천구": {
+      "flpop_tot": 34978175,
+      "ml_tot": 17298993,
+      "fml_tot": 17679180,
+      "daytime_share": 0.4348,
+      "dong_count": 10,
+      "basis": "flpop"
+    },
+    "노원구": {
+      "flpop_tot": 91576368,
+      "ml_tot": 42288020,
+      "fml_tot": 49288349,
+      "daytime_share": 0.4369,
+      "dong_count": 19,
+      "basis": "flpop"
+    },
+    "도봉구": {
+      "flpop_tot": 61099851,
+      "ml_tot": 28347136,
+      "fml_tot": 32752711,
+      "daytime_share": 0.4314,
+      "dong_count": 14,
+      "basis": "flpop"
+    },
+    "동대문구": {
+      "flpop_tot": 105885188,
+      "ml_tot": 49583543,
+      "fml_tot": 56301644,
+      "daytime_share": 0.4496,
+      "dong_count": 14,
+      "basis": "flpop"
+    },
+    "동작구": {
+      "flpop_tot": 79482451,
+      "ml_tot": 37324384,
+      "fml_tot": 42158069,
+      "daytime_share": 0.4306,
+      "dong_count": 15,
+      "basis": "flpop"
+    },
+    "마포구": {
+      "flpop_tot": 111700180,
+      "ml_tot": 50507329,
+      "fml_tot": 61192850,
+      "daytime_share": 0.4536,
+      "dong_count": 16,
+      "basis": "flpop"
+    },
+    "서대문구": {
+      "flpop_tot": 100020367,
+      "ml_tot": 45115946,
+      "fml_tot": 54904420,
+      "daytime_share": 0.4774,
+      "dong_count": 14,
+      "basis": "flpop"
+    },
+    "서초구": {
+      "flpop_tot": 99034837,
+      "ml_tot": 47350268,
+      "fml_tot": 51684570,
+      "daytime_share": 0.4907,
+      "dong_count": 18,
+      "basis": "flpop"
+    },
+    "성동구": {
+      "flpop_tot": 73427813,
+      "ml_tot": 34464577,
+      "fml_tot": 38963231,
+      "daytime_share": 0.4633,
+      "dong_count": 17,
+      "basis": "flpop"
+    },
+    "성북구": {
+      "flpop_tot": 119201823,
+      "ml_tot": 54309746,
+      "fml_tot": 64892075,
+      "daytime_share": 0.4354,
+      "dong_count": 20,
+      "basis": "flpop"
+    },
+    "송파구": {
+      "flpop_tot": 119374863,
+      "ml_tot": 55642045,
+      "fml_tot": 63732817,
+      "daytime_share": 0.4406,
+      "dong_count": 27,
+      "basis": "flpop"
+    },
+    "양천구": {
+      "flpop_tot": 75372550,
+      "ml_tot": 35264187,
+      "fml_tot": 40108366,
+      "daytime_share": 0.4278,
+      "dong_count": 18,
+      "basis": "flpop"
+    },
+    "영등포구": {
+      "flpop_tot": 107551420,
+      "ml_tot": 51728360,
+      "fml_tot": 55823058,
+      "daytime_share": 0.4623,
+      "dong_count": 18,
+      "basis": "flpop"
+    },
+    "용산구": {
+      "flpop_tot": 57722763,
+      "ml_tot": 27370953,
+      "fml_tot": 30351817,
+      "daytime_share": 0.4613,
+      "dong_count": 16,
+      "basis": "flpop"
+    },
+    "은평구": {
+      "flpop_tot": 94584762,
+      "ml_tot": 42531705,
+      "fml_tot": 52053057,
+      "daytime_share": 0.4208,
+      "dong_count": 16,
+      "basis": "flpop"
+    },
+    "종로구": {
+      "flpop_tot": 64461665,
+      "ml_tot": 30837315,
+      "fml_tot": 33624355,
+      "daytime_share": 0.5175,
+      "dong_count": 17,
+      "basis": "flpop"
+    },
+    "중구": {
+      "flpop_tot": 56038066,
+      "ml_tot": 27216118,
+      "fml_tot": 28821952,
+      "daytime_share": 0.5447,
+      "dong_count": 15,
+      "basis": "flpop"
+    },
+    "중랑구": {
+      "flpop_tot": 93507214,
+      "ml_tot": 43845923,
+      "fml_tot": 49661288,
+      "daytime_share": 0.4251,
+      "dong_count": 16,
+      "basis": "flpop"
+    }
+  }
+}

@@ -739,8 +739,12 @@ function renderSimilar(p) {
 function renderFeatures(p) {
   const f = p.features;
   const rentReal = f.rent_kwon_m2 != null;
+  const rc = p.real_competition; // 상가정보 실측 경쟁밀도(있을 때만)
+  const comp = rc
+    ? { k: `동종 경쟁 (반경 ${rc.radius_m}m)`, v: rc.count, u: "개", i: ICONS.users, tag: "상가정보 실측" }
+    : { k: `경쟁 (반경 ${f.radius_m}m)`, v: f.competition_count, u: "개", i: ICONS.users };
   const items = [
-    { k: `경쟁 (반경 ${f.radius_m}m)`, v: f.competition_count, u: "개", i: ICONS.users },
+    comp,
     { k: "유동인구 지수", v: f.foot_traffic, u: "/100", i: ICONS.activity },
     { k: "공실률", v: f.vacancy, u: "%", i: ICONS.door, tag: "R-ONE 실측" },
     rentReal
@@ -1245,9 +1249,9 @@ function renderDeep(r) {
       <div class="co"><span>실측 코호트</span><b>${w(co.n)}개</b></div>
       <div class="co"><span>3년 생존</span><b style="color:${bandColor(bandFor(co.survival_3y))}">${co.survival_3y}%</b></div>
       <div class="co"><span>중위 생존</span><b>${co.median_reached ? co.median_months + "개월" : "60개월+"}</b></div>
-      <div class="co"><span>반경 ${co.radius_m}m 동종</span><b>약 ${co.competition_count}개</b></div>
+      <div class="co"><span>반경 ${co.real_competition ? co.real_competition.radius_m : co.radius_m}m 동종${co.real_competition ? " · 실측" : ""}</span><b>${co.real_competition ? co.real_competition.count + "개" : "약 " + co.competition_count + "개"}</b></div>
     </div>
-    <div class="dr-note">동일 지역·업종의 유사 점포 생존 이력(Kaplan–Meier)과 반경 내 실제 경쟁 밀도를 근거로 산출했습니다.</div>
+    <div class="dr-note">동일 지역·업종의 유사 점포 생존 이력(Kaplan–Meier)과 ${co.real_competition ? "상가정보 실측 경쟁 밀도" : "반경 내 실제 경쟁 밀도"}를 근거로 산출했습니다.</div>
   </div>
 
   <div class="dr-foot">
@@ -1628,7 +1632,7 @@ function doPrint() {
   requestAnimationFrame(() => window.print());
 }
 
-/* ---------------- 실제 점포 (OSM) ---------------- */
+/* ---------------- 실제 점포 (상가정보 우선 · OSM 폴백) ---------------- */
 function toggleStores() {
   state.storesOn = !state.storesOn;
   const b = $("stores-toggle");
@@ -1646,7 +1650,12 @@ async function loadStores() {
     if (!state.storesOn) return;
     state.storesKey = key;
     renderStores(r.stores);
-    if (!r.stores.length) toast("이 반경엔 지도에 등록된 실제 점포가 없어요");
+    const src = r.source === "상가정보"
+      ? `상가정보${r.stdr_ym ? " " + r.stdr_ym.slice(0, 4) + "." + r.stdr_ym.slice(4) : ""}`
+      : "OpenStreetMap";
+    if (!r.stores.length) toast("이 반경엔 등록된 실제 점포가 없어요");
+    else if (r.total > r.stores.length) toast(`반경 ${r.radius}m 내 ${r.total}곳 · 지도엔 상위 ${r.stores.length}곳 (${src})`);
+    else toast(`반경 ${r.radius}m 내 ${r.total}곳 (${src})`);
   } catch (e) { clearStores(); }
   finally { b.classList.remove("loading-b"); }
 }
@@ -1655,8 +1664,9 @@ function renderStores(list) {
   state.storesMarkers = [];
   list.forEach((s) => {
     const icon = L.divIcon({ html: `<div class="store-dot"></div>`, className: "bubble-wrap", iconSize: [12, 12], iconAnchor: [6, 6] });
+    const tip = s.category ? `${esc(s.name)} · ${esc(s.category)}` : esc(s.name);
     const m = L.marker([s.lat, s.lon], { icon, zIndexOffset: 400 })
-      .bindTooltip(esc(s.name), { direction: "top", offset: [0, -6] });
+      .bindTooltip(tip, { direction: "top", offset: [0, -6] });
     m.addTo(state.storesLayer);
     state.storesMarkers.push(m);
   });

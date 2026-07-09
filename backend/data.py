@@ -23,11 +23,12 @@ import re
 # 데이터 출처 표기 (프론트/리포트에서 신뢰성 고지에 사용)
 DATA_PROVENANCE = {
     "mode": "prototype",
-    "note": "수치는 서울 상권 경향에 맞춰 보정한 합성 데이터입니다. "
-            "실데이터(인허가·상가정보·상권분석·R-ONE·SGIS) 연결 시 값만 교체하면 됩니다.",
+    "note": "상권 변수(유동인구·임대료·공실·소득)는 서울 상권 경향에 맞춰 보정한 합성값이며, "
+            "지도의 실제 점포와 반경 내 경쟁밀도는 소상공인시장진흥공단 상가정보(공공데이터포털) "
+            "실데이터로 연동돼 있습니다.",
     "sources": [
         {"role": "라벨(생존기간)", "name": "인허가 데이터", "org": "공공데이터포털 / 구 LOCALDATA"},
-        {"role": "점포 변수", "name": "상가정보", "org": "공공데이터포털"},
+        {"role": "점포·경쟁밀도", "name": "상가(상권)정보", "org": "소상공인시장진흥공단(공공데이터포털)", "live": True},
         {"role": "상권 변수", "name": "우리마을가게 상권분석", "org": "서울 열린데이터광장"},
         {"role": "상권 변수", "name": "부동산 임대·공실", "org": "한국부동산원 R-ONE"},
         {"role": "배후 변수", "name": "인구·사업체", "org": "통계청 SGIS"},
@@ -286,26 +287,118 @@ if _RONE_PROV:
     _q = (_RONE_PROV.get("quarter") or {}).get("rent", "")
     _qtxt = f"{_q[:4]}년 {int(_q[4:])}분기" if len(_q) == 6 and _q[4:].isdigit() else _q
     DATA_PROVENANCE["mode"] = "hybrid"
+    # 실측 연동된 소스들(상가정보=실점포·경쟁밀도, R-ONE=임대료·공실)을 함께 고지.
+    # 기존 note(상가정보 연동 설명)를 지우지 않고 R-ONE 실측 문장을 합쳐 쓴다.
     DATA_PROVENANCE["note"] = (
         f"임대료·공실률은 한국부동산원 R-ONE 상업용부동산 임대동향조사(소규모 상가, "
-        f"{_qtxt}) 실측값입니다. 나머지 변수(유동인구·배후수요·소득·주간인구·상업집적)는 "
+        f"{_qtxt}) 실측값이고, 지도의 실제 점포와 반경 내 경쟁밀도는 소상공인시장진흥공단 "
+        f"상가정보(공공데이터포털) 실측입니다. 나머지 변수(유동인구·배후수요·소득·주간인구)는 "
         f"아직 서울 상권 경향에 맞춘 합성값이며, 실데이터 연결 시 값만 교체하면 됩니다."
     )
     DATA_PROVENANCE["real_fields"] = {
         "rent": {"real": True, "source": "한국부동산원 R-ONE", "detail": "소규모 상가 임대료(천원/㎡)"},
         "vacancy": {"real": True, "source": "한국부동산원 R-ONE", "detail": "소규모 상가 공실률(%)"},
+        "competition": {"real": True, "source": "소상공인 상가정보", "detail": "반경 내 실측 점포수(요청 시 조회)"},
         "foot_traffic": {"real": False}, "resident_support": {"real": False},
         "income": {"real": False}, "daytime_pop": {"real": False},
-        "commercial_intensity": {"real": False},
     }
     DATA_PROVENANCE["rone"] = _RONE_PROV
-    # 소스 목록에서 R-ONE 항목을 '실측 연결됨'으로 갱신
+    # 소스 상태 표기: R-ONE·live(상가정보) = 연결됨(실측), 그 외 = 예정
     for _s in DATA_PROVENANCE["sources"]:
         if _s.get("org", "").startswith("한국부동산원"):
             _s["status"] = "연결됨(실측)"
             _s["quarter"] = _qtxt
+        elif _s.get("live"):
+            _s.setdefault("status", "연결됨(실측)")
         else:
             _s.setdefault("status", "예정")
+
+# ---------------------------------------------------------------------------
+# 실데이터 주입 — 서울 우리마을가게 상권분석서비스(길단위인구-행정동, 유동인구)
+#   서울 25개 자치구의 foot_traffic(유동인구 지수)을 행정동 실측 유동인구 합계로
+#   덮어쓴다. (스냅샷: realdata/seoul_flpop.json) 경기/전국은 아직 합성값이다.
+# ---------------------------------------------------------------------------
+from backend.realdata.loader import apply_flpop as _apply_flpop  # noqa: E402
+
+_FLPOP_PROV = _apply_flpop(DISTRICTS)
+if _FLPOP_PROV:
+    _fq = _FLPOP_PROV.get("quarter_txt") or _FLPOP_PROV.get("quarter") or ""
+    DATA_PROVENANCE["mode"] = "hybrid"
+    DATA_PROVENANCE["flpop"] = _FLPOP_PROV
+    _rf = DATA_PROVENANCE.setdefault("real_fields", {})
+    _rf["foot_traffic"] = {
+        "real": True, "source": "서울 열린데이터광장",
+        "detail": f"우리마을가게 유동인구({_fq}, 서울 자치구 행정동 실측 합계)",
+    }
+    # note: 유동인구를 '아직 합성' 목록에서 빼고 실측 문장을 덧붙인다.
+    _note = DATA_PROVENANCE.get("note", "")
+    _note = _note.replace("유동인구·배후수요·소득·주간인구", "배후수요·소득·주간인구")
+    DATA_PROVENANCE["note"] = _note + (
+        f" 서울 자치구의 유동인구는 서울 열린데이터광장 우리마을가게 상권분석"
+        f"({_fq}, 행정동 실측 합계) 값입니다."
+    )
+    # 소스 상태 표기: 우리마을가게 상권분석(서울 열린데이터광장) = 연결됨(실측)
+    for _s in DATA_PROVENANCE["sources"]:
+        if _s.get("org", "").startswith("서울") and "상권분석" in _s.get("name", ""):
+            _s["status"] = "연결됨(실측)"
+            _s["quarter"] = _fq
+
+# ---------------------------------------------------------------------------
+# 실데이터 주입 — 서울 우리마을가게 상권분석서비스(상주인구·직장인구-행정동)
+#   서울 25개 자치구의 resident_support(배후 거주수요)·daytime_pop(주간 활동인구)을
+#   행정동 실측 상주·직장인구 합계로 덮어쓴다. (스냅샷: realdata/seoul_pop.json)
+# ---------------------------------------------------------------------------
+from backend.realdata.loader import apply_pop as _apply_pop  # noqa: E402
+
+_POP_PROV = _apply_pop(DISTRICTS)
+if _POP_PROV:
+    _pq = _POP_PROV.get("quarter_txt") or _POP_PROV.get("quarter") or ""
+    DATA_PROVENANCE["mode"] = "hybrid"
+    DATA_PROVENANCE["pop"] = _POP_PROV
+    _rf = DATA_PROVENANCE.setdefault("real_fields", {})
+    _rf["resident_support"] = {
+        "real": True, "source": "서울 열린데이터광장",
+        "detail": f"우리마을가게 상주인구({_pq}, 서울 자치구 행정동 실측 합계)",
+    }
+    _rf["daytime_pop"] = {
+        "real": True, "source": "서울 열린데이터광장",
+        "detail": f"우리마을가게 직장인구({_pq}, 서울 자치구 행정동 실측 합계)",
+    }
+    _note = DATA_PROVENANCE.get("note", "")
+    _note = _note.replace("배후수요·소득·주간인구", "소득")
+    DATA_PROVENANCE["note"] = _note + (
+        f" 배후 거주수요·주간 활동인구는 우리마을가게 상주인구·직장인구"
+        f"({_pq}, 서울 행정동 실측) 값입니다."
+    )
+
+# ---------------------------------------------------------------------------
+# 실데이터 주입 — 통계청 SGIS 인구·종사자 (경기·전국 배후수요·주간인구)
+#   서울 외 자치구의 resident_support(인구)·daytime_pop(종사자수)을 SGIS 실측으로
+#   대체한다(서울은 위 열린데이터광장 값 유지). 스냅샷: realdata/sgis_pop.json
+# ---------------------------------------------------------------------------
+from backend.realdata.loader import apply_sgis as _apply_sgis  # noqa: E402
+
+_SGIS_PROV = _apply_sgis(DISTRICTS)
+if _SGIS_PROV:
+    _sy = _SGIS_PROV.get("year", "")
+    DATA_PROVENANCE["mode"] = "hybrid"
+    DATA_PROVENANCE["sgis"] = _SGIS_PROV
+    _rf = DATA_PROVENANCE.setdefault("real_fields", {})
+    _rf["resident_support"] = {
+        "real": True, "source": "서울 열린데이터광장 + 통계청 SGIS",
+        "detail": f"배후 인구 실측(서울=우리마을가게 상주인구, 경기·전국=SGIS 인구 {_sy})",
+    }
+    _rf["daytime_pop"] = {
+        "real": True, "source": "서울 열린데이터광장 + 통계청 SGIS",
+        "detail": f"주간 활동인구 실측(서울=직장인구, 경기·전국=SGIS 종사자수 {_sy})",
+    }
+    DATA_PROVENANCE["note"] = DATA_PROVENANCE.get("note", "") + (
+        f" 경기·전국 자치구의 배후수요·주간인구는 통계청 SGIS 인구·종사자({_sy}년) 실측입니다."
+    )
+    for _s in DATA_PROVENANCE["sources"]:
+        if _s.get("org", "").startswith("통계청"):
+            _s["status"] = "연결됨(실측)"
+            _s["year"] = _sy
 
 # 지역(시·도) 매핑 — 프론트 그룹핑/필터용
 REGION_OF: dict[str, str] = {

@@ -1,0 +1,142 @@
+{
+  "meta": {
+    "source": "우리마을가게 상권분석서비스(상주인구·직장인구-행정동)",
+    "org": "서울 열린데이터광장 OpenAPI",
+    "services": {
+      "resident": "VwsmAdstrdRepopW",
+      "daytime": "VwsmAdstrdWrcPopltnW"
+    },
+    "unit": "분기 인구(명) — 행정동 합계를 자치구로 집계",
+    "quarter": "20261",
+    "quarter_txt": "2026년 1분기",
+    "series_years": "2021~현재(분기)",
+    "note": "자치구 대표값 = 자치구 소속 행정동의 총 상주인구·직장인구 합계."
+  },
+  "districts": {
+    "강남구": {
+      "resident_pop": 539297,
+      "daytime_pop": 1079924,
+      "basis": "seoul_odp"
+    },
+    "강동구": {
+      "resident_pop": 456800,
+      "daytime_pop": 51554,
+      "basis": "seoul_odp"
+    },
+    "강북구": {
+      "resident_pop": 287918,
+      "daytime_pop": 14740,
+      "basis": "seoul_odp"
+    },
+    "강서구": {
+      "resident_pop": 560995,
+      "daytime_pop": 73335,
+      "basis": "seoul_odp"
+    },
+    "관악구": {
+      "resident_pop": 479790,
+      "daytime_pop": 41999,
+      "basis": "seoul_odp"
+    },
+    "광진구": {
+      "resident_pop": 334942,
+      "daytime_pop": 56058,
+      "basis": "seoul_odp"
+    },
+    "구로구": {
+      "resident_pop": 391809,
+      "daytime_pop": 122194,
+      "basis": "seoul_odp"
+    },
+    "금천구": {
+      "resident_pop": 226388,
+      "daytime_pop": 131583,
+      "basis": "seoul_odp"
+    },
+    "노원구": {
+      "resident_pop": 498037,
+      "daytime_pop": 28109,
+      "basis": "seoul_odp"
+    },
+    "도봉구": {
+      "resident_pop": 306437,
+      "daytime_pop": 20112,
+      "basis": "seoul_odp"
+    },
+    "동대문구": {
+      "resident_pop": 340101,
+      "daytime_pop": 50705,
+      "basis": "seoul_odp"
+    },
+    "동작구": {
+      "resident_pop": 377821,
+      "daytime_pop": 45111,
+      "basis": "seoul_odp"
+    },
+    "마포구": {
+      "resident_pop": 362701,
+      "daytime_pop": 120344,
+      "basis": "seoul_odp"
+    },
+    "서대문구": {
+      "resident_pop": 305725,
+      "daytime_pop": 35863,
+      "basis": "seoul_odp"
+    },
+    "서초구": {
+      "resident_pop": 406675,
+      "daytime_pop": 434315,
+      "basis": "seoul_odp"
+    },
+    "성동구": {
+      "resident_pop": 276723,
+      "daytime_pop": 73657,
+      "basis": "seoul_odp"
+    },
+    "성북구": {
+      "resident_pop": 425160,
+      "daytime_pop": 68606,
+      "basis": "seoul_odp"
+    },
+    "송파구": {
+      "resident_pop": 653369,
+      "daytime_pop": 409883,
+      "basis": "seoul_odp"
+    },
+    "양천구": {
+      "resident_pop": 435645,
+      "daytime_pop": 85678,
+      "basis": "seoul_odp"
+    },
+    "영등포구": {
+      "resident_pop": 373300,
+      "daytime_pop": 400232,
+      "basis": "seoul_odp"
+    },
+    "용산구": {
+      "resident_pop": 212914,
+      "daytime_pop": 176024,
+      "basis": "seoul_odp"
+    },
+    "은평구": {
+      "resident_pop": 466475,
+      "daytime_pop": 31146,
+      "basis": "seoul_odp"
+    },
+    "종로구": {
+      "resident_pop": 138891,
+      "daytime_pop": 223590,
+      "basis": "seoul_odp"
+    },
+    "중구": {
+      "resident_pop": 120961,
+      "daytime_pop": 406487,
+      "basis": "seoul_odp"
+    },
+    "중랑구": {
+      "resident_pop": 381547,
+      "daytime_pop": 21334,
+      "basis": "seoul_odp"
+    }
+  }
+}
