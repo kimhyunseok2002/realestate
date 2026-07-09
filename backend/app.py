@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 
 # vendor(로컬 설치 의존성)와 프로젝트 루트를 경로에 추가 — 어디서 실행해도 import 되도록
@@ -261,6 +262,86 @@ def api_whatif(req: WhatIfRequest):
         ans["alt_survival"] = alt["survival"]
         ans["base_survival"] = base["survival"]
     return ans
+
+
+# ---------------------------------------------------------------------------
+# 자연어 질문 (채팅바) — 지역·업종을 파싱해 예측 + 대화형 답변
+# ---------------------------------------------------------------------------
+# 자연어 문장에서 지명만 뽑기 위한 서술 어미·수식어(다중 글자 위주로 안전하게)
+_ASK_FILLER = re.compile(
+    r"(근처|주변|일대|건너편|앞쪽|앞|뒤|옆|쪽|쯤|정도|여기|저기|"
+    r"차리면|차려도|차리려|차리고|차리|열면|열어도|여는|만들면|만들|하면|한다면|할까|하려고|하려|하고싶어|하고 싶어|하는건|"
+    r"어떨까|어떨지|어때|어떤가|어떤지|괜찮을까|괜찮나|괜찮은가|될까|좋을까|좋은가|생각중|생각 중|추천해줘|추천|알려줘|어디)")
+
+
+def _extract_place(q: str) -> str:
+    """'한국항공대에 커피집 차리면 어떨까?' → '한국항공대'. 지오코딩용 지명 추출.
+    한국어 장소 조사 '~에/에서' 앞부분을 우선 지명 후보로 보고, 업종어·서술어를 제거."""
+    m = re.search(r"(.+?)(에서|에다가|에다|에)(\s|$)", q.strip())
+    cand = m.group(1) if m else q.strip()
+    for words in data.INDUSTRY_SYNONYMS.values():
+        for w in sorted(words, key=len, reverse=True):
+            cand = cand.replace(w, " ")
+    cand = _ASK_FILLER.sub(" ", cand)
+    cand = re.sub(r"[?!.,]", " ", cand)
+    return re.sub(r"\s+", " ", cand).strip()
+
+
+def _ask_reply(gu, ind_label, pred, snapped=False, place=None):
+    s = pred["survival"]
+    band = pred["band"]
+    word = {"good": "비교적 안정적인", "warning": "평균 수준의",
+            "serious": "다소 주의가 필요한", "critical": "매우 취약한"}.get(band, "평균 수준의")
+    risks = pred.get("risks", [])
+    hurts = [r for r in risks if r["effect_pp"] < 0]
+    helps = [r for r in risks if r["effect_pp"] > 0]
+    pre = ""
+    if snapped and place:
+        pre = f"‘{place}’은 아직 개별 지원 상권이 아니라, 가장 가까운 {data.gu_full(gu)} 기준으로 봤어요. "
+    out = (f"{pre}{data.gu_full(gu)}에서 {ind_label}의 3년 생존율은 약 {s['y3']}%로 {word} 자리예요. "
+           f"(1년 {s['y1']}% · 5년 {s['y5']}%) ")
+    if hurts and helps:
+        out += f"가장 큰 위험요인은 ‘{hurts[0]['label']}’이고, ‘{helps[0]['label']}’이(가) 받쳐줍니다. "
+    elif hurts:
+        out += f"가장 큰 위험요인은 ‘{hurts[0]['label']}’입니다. "
+    elif helps:
+        out += f"‘{helps[0]['label']}’이(가) 이 자리의 강점입니다. "
+    out += "지도를 옮기고 왼쪽에 상세 분석·AI 리포트를 띄웠어요."
+    return out
+
+
+@app.get("/api/ask")
+def api_ask(q: str = Query(..., min_length=1, max_length=200), industry: str = Query("")):
+    """자연어 질문 → 지역·업종 파싱 → 예측 + 대화형 답변(프론트가 지도 이동·분석에 사용).
+    지역명이 자치구/시가 아니라 대학·역·동네 같은 지명이면 지오코딩으로 좌표를 찾아
+    가장 가까운 지원 상권으로 스냅한다."""
+    ind = data.detect_industry(q) or (industry if industry in data.INDUSTRIES else "카페")
+    gu = data.detect_district(q)
+    lat = lon = None
+    snapped = False
+    place = None
+    if not gu:
+        place = _extract_place(q)
+        hits = geocode.geocode(place, limit=1) if len(place) >= 2 else []
+        if hits:
+            lat, lon = hits[0]["lat"], hits[0]["lon"]
+            res = geocode.resolve_gu(lat, lon, hits[0].get("display_name", ""))
+            gu, snapped = res["gu"], bool(res.get("snapped"))
+    if not gu:
+        return {"ok": False, "industry": ind, "industry_label": data.industry_label(ind),
+                "reply": "어느 지역인지 못 찾았어요. ‘고양시’, ‘강남구’, ‘부산’ 같은 지역이나 "
+                         "‘강남역’, ‘한국항공대’, ‘홍대’ 같은 장소명을 넣어 다시 물어봐 주세요."}
+    d = data.DISTRICTS[gu]
+    plat = lat if lat is not None else d["lat"]
+    plon = lon if lon is not None else d["lon"]
+    pred = survival.predict(gu, ind, plat, plon)
+    return {
+        "ok": True, "gu": gu, "region": data.district_region(gu),
+        "industry": ind, "industry_label": data.industry_label(ind),
+        "lat": plat, "lon": plon, "snapped": snapped, "place": place,
+        "survival": pred["survival"], "band": pred["band"],
+        "reply": _ask_reply(gu, data.industry_label(ind), pred, snapped=snapped, place=place),
+    }
 
 
 # ---------------------------------------------------------------------------

@@ -18,6 +18,8 @@
 
 from __future__ import annotations
 
+import re
+
 # 데이터 출처 표기 (프론트/리포트에서 신뢰성 고지에 사용)
 DATA_PROVENANCE = {
     "mode": "prototype",
@@ -550,6 +552,36 @@ def detect_industry(text: str, exclude: str | None = None) -> str | None:
         return None
     hits.sort()  # 가장 먼저 등장한 업종
     return hits[0][1]
+
+
+_GU_STRIP = re.compile(r"(특별자치시|특별자치도|특별시|광역시|시|군|구)$")
+
+
+def detect_district(text: str) -> str | None:
+    """자유 텍스트에서 지원 지역(자치구/시)명을 감지.
+    - '고양시', '강남구'는 물론 '고양', '강남' 같은 부분 표기도 인식(길이 2 이상).
+    - 특정 지역이 없고 시·도만 언급되면(예: '부산', '경기') 대표 지역으로 매핑."""
+    if not text:
+        return None
+    hits = []
+    for name in DISTRICTS:
+        forms = [name]
+        stripped = _GU_STRIP.sub("", name)
+        if len(stripped) >= 2 and stripped != name:
+            forms.append(stripped)
+        for f in forms:
+            idx = text.find(f)
+            if idx >= 0:
+                hits.append((idx, -len(f), name))
+                break
+    if hits:
+        hits.sort()                       # 가장 먼저·가장 길게 매칭된 지역
+        return hits[0][2]
+    # 시·도만 언급 → 그 지역의 대표(첫) 자치구/시로
+    for region in REGION_OF.values():
+        if region in text:
+            return next((g for g in DISTRICTS if REGION_OF[g] == region), None)
+    return None
 
 
 # 위험 분해 리포트에서 쓰는 요인 메타(표시명·설명·좋은방향)

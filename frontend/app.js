@@ -161,6 +161,7 @@ async function init() {
   buildIndustryChips();
   buildRegionChips();
   initMap();
+  initAsk();
   // 딥링크(?gu=&industry=&lat=&lon=)가 있으면 그 분석을 복원, 없으면 강남역 데모
   const q = new URLSearchParams(location.search);
   const qi = q.get("industry");
@@ -185,6 +186,67 @@ function buildIndustryChips() {
     box.appendChild(el);
   });
   wireChipScroll();
+}
+
+/* ---------------- 자연어 채팅바 ---------------- */
+function initAsk() {
+  const form = $("ask-form"), input = $("ask-input");
+  if (!form) return;
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const q = input.value.trim();
+    if (q) runAsk(q);
+  });
+  document.querySelectorAll("#ask-examples button").forEach((b) => {
+    b.onclick = () => runAsk(b.dataset.q || b.textContent.trim());
+  });
+}
+function addAskMsg(role, text) {
+  const log = $("ask-log");
+  const el = document.createElement("div");
+  el.className = `ask-msg ${role}`;
+  el.textContent = text;
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+  return el;
+}
+async function runAsk(q) {
+  const input = $("ask-input"), send = $("ask-send");
+  addAskMsg("user", q);
+  input.value = "";
+  const ex = $("ask-examples"); if (ex) ex.classList.add("hidden");
+  const typing = addAskMsg("bot typing", "AI가 분석 중…");
+  send.disabled = true; input.disabled = true;
+  try {
+    // 1) 빠른 파싱(지역·업종) — 지도/분석은 즉시 반영
+    const r = await api(`/api/ask?q=${encodeURIComponent(q)}&industry=${encodeURIComponent(state.industry || "")}`);
+    if (!r.ok) { typing.remove(); addAskMsg("bot", r.reply); return; }
+    const move = (async () => {
+      if (r.industry && r.industry !== state.industry) await selectIndustry(r.industry);
+      await setLocation(r.lat, r.lon, { gu: r.gu, address: guFull(r.gu), skipReverse: true, fly: true, zoom: 14, reveal: true });
+    })();
+    // 2) 답변은 LLM(Claude)이 생성 — 예측 수치에 근거해 질문에 직접 답변(실패 시 템플릿 폴백)
+    let reply = r.reply, viaClaude = false;
+    try {
+      const w = await api("/api/whatif", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gu: r.gu, industry: r.industry, lat: r.lat, lon: r.lon, question: q }),
+      });
+      if (w && w.text) { reply = w.text; viaClaude = (w.source === "llm"); }
+    } catch (e) { /* whatif 실패 → r.reply(템플릿) 사용 */ }
+    typing.remove();
+    const msg = addAskMsg("bot", reply);
+    const tag = document.createElement("span");
+    tag.className = "ask-src";
+    tag.textContent = viaClaude ? "✦ AI" : "규칙 기반";
+    msg.appendChild(tag);
+    await move;
+  } catch (e) {
+    typing.remove();
+    addAskMsg("bot", "분석 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.");
+  } finally {
+    send.disabled = false; input.disabled = false; input.focus();
+  }
 }
 
 /* 칩바 좌우 스크롤 버튼 — 넘치면 화살표 표시, 클릭 시 한 화면씩 이동 */
@@ -976,7 +1038,7 @@ function renderReportGated() {
       ["📊", "손익분기·투자회수 시뮬", "내 예산·목표순익 기준 월 손익과 회수기간"],
       ["🎯", "명확한 판정 + 실행 플레이북", "진입 여부 결론과 살아남는 구체 전략"],
       ["⚠️", "실패 시나리오 3가지 + 대비책", "이 자리가 망하는 경로와 방어법"],
-      ["🤝", "임대료 협상 무기", "적정 임대료 vs 제시액 · 협상 목표가"],
+      ["🤝", "적정 임대료 분석", "적정 임대료 vs 제시액 · 협상 목표가"],
       ["📈", "상권 추세 · 더 나은 대안", "뜨는지/지는지 + 더 안전한 자리·업종"],
     ];
     box.innerHTML = `
@@ -1140,7 +1202,7 @@ function renderDeep(r) {
   </div>
 
   <div class="dr-sec">
-    <div class="dr-eyebrow"><span class="dr-no">04</span> 임대료 협상 무기</div>
+    <div class="dr-eyebrow"><span class="dr-no">04</span> 적정 임대료 분석</div>
     <div class="rn-head"><span class="rn-verdict v-${rn.band}">${esc(rn.verdict)}</span><span class="rn-sum">제시 <b>${w(rn.offered)}만</b> vs 적정 <b>${w(rn.fair)}만</b> <em class="${rn.diff_pct > 0 ? "neg" : "pos"}">(${rn.diff_pct > 0 ? "+" : ""}${rn.diff_pct}%)</em></span></div>
     <div class="rn-bars">
       <div class="rn-line"><span>제시</span><div class="rn-track"><div class="rn-fill off" style="width:${Math.min(100, (rn.offered / Math.max(rn.offered, rn.fair)) * 100).toFixed(1)}%"></div></div><em>${w(rn.offered)}만</em></div>
@@ -1260,7 +1322,7 @@ async function askWhatIf() {
         <span class="wa-arrow">${ICONS.arrow}</span>
         <div class="wa-chip">${esc(r.compared_industry)} 3년<b style="color:${bandColor(bandFor(r.alt_survival.y3))}">${r.alt_survival.y3}%</b></div></div>`;
     }
-    const badge = r.source === "claude" ? `<span class="src-badge src-claude" style="margin-top:8px">${ICONS.spark} Claude</span>` : `<span class="src-badge src-template" style="margin-top:8px">템플릿</span>`;
+    const badge = r.source === "llm" ? `<span class="src-badge src-claude" style="margin-top:8px">${ICONS.spark} AI</span>` : `<span class="src-badge src-template" style="margin-top:8px">템플릿</span>`;
     ans.innerHTML = head + `<div>${esc(r.text)}</div><div style="margin-top:8px">${badge}</div>`;
   } catch (e) { ans.innerHTML = `<div class="err">${ICONS.warn}<span>${esc(e.message)}</span></div>`; }
   finally { busyBtn($("whatif-btn"), false); }

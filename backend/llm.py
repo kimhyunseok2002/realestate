@@ -1,32 +1,33 @@
 """
-LLM 인터페이스 레이어 (Claude CLI)
+LLM 인터페이스 레이어 (OpenAI API)
 ====================================
 
-문서의 원칙 그대로: **LLM은 예측 엔진이 아니라 번역·설명·오케스트레이션 레이어**다.
+문서의 원칙 그대로: **LLM은 예측 엔진이 아니라 번역·설명 레이어**다.
 survival.py 가 뱉은 숫자를 자영업자가 읽는 자연어 리포트로 옮기고, what-if 질문에
 답한다. 예측(생존율 계산)에는 절대 관여하지 않는다.
 
-- 백엔드가 로컬 Claude CLI(`claude -p`)를 서브프로세스로 호출 (키 관리 불필요).
-- CLI가 없거나 실패/타임아웃이면 **규칙 기반 템플릿 리포트**로 자동 폴백 →
+- OpenAI Chat Completions API를 HTTP(urllib)로 직접 호출한다. SDK 의존성이 없어
+  **Vercel 서버리스에서도 그대로 동작**한다(로컬 CLI가 없어도 됨).
+- API 키는 코드에 넣지 않고 **환경변수 OPENAI_API_KEY** 로만 읽는다.
+  (로컬: 프로젝트 루트 .env 또는 export / 배포: Vercel 프로젝트 환경변수)
+- 키가 없거나 호출이 실패/타임아웃이면 **규칙 기반 템플릿**으로 자동 폴백 →
   LLM 없이도 서비스는 항상 동작한다.
 """
 
 from __future__ import annotations
 
+import json
 import os
-import shutil
-import subprocess
-import tempfile
+import urllib.error
+import urllib.request
 
 from . import data
 
-# 모델: 리포트=번역 작업이므로 균형 모델(Sonnet) 기본, 환경변수로 교체 가능
-MODEL = os.environ.get("SANGKWON_LLM_MODEL", "claude-sonnet-5")
-TIMEOUT = int(os.environ.get("SANGKWON_LLM_TIMEOUT", "150"))
-
-# 리포트는 순수 텍스트 생성 — 도구 사용 차단(안전·속도)
-_BLOCK_TOOLS = ["Bash", "Edit", "Write", "Read", "WebFetch", "WebSearch",
-                "Glob", "Grep", "Task", "NotebookEdit"]
+# 모델: 리포트=번역 작업이라 경량·저가 모델을 기본으로. 환경변수로 교체 가능.
+MODEL = os.environ.get("SANGKWON_LLM_MODEL", "gpt-4o-mini")
+TIMEOUT = int(os.environ.get("SANGKWON_LLM_TIMEOUT", "60"))
+# 엔드포인트(호환 게이트웨이/프록시로도 교체 가능)
+OPENAI_URL = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/") + "/chat/completions"
 
 _SYSTEM = (
     "당신은 상권 분석 리포트를 쓰는 한국어 카피라이터입니다. "
@@ -38,41 +39,42 @@ _SYSTEM = (
 )
 
 
-def _cli_path() -> str | None:
-    p = os.environ.get("CLAUDE_CODE_EXECPATH")
-    if p and os.path.exists(p):
-        return p
-    known = ("/home/kim/.vscode/extensions/anthropic.claude-code-2.1.198-linux-x64/"
-             "resources/native-binary/claude")
-    if os.path.exists(known):
-        return known
-    return shutil.which("claude")
+def _api_key() -> str:
+    return os.environ.get("OPENAI_API_KEY", "").strip()
 
 
 def available() -> bool:
-    return _cli_path() is not None
+    """OPENAI_API_KEY 가 설정돼 있으면 LLM 사용 가능."""
+    return bool(_api_key())
 
 
-def _run_claude(prompt: str, timeout: int = TIMEOUT) -> str | None:
-    cli = _cli_path()
-    if not cli:
+def _run_llm(prompt: str, timeout: int = TIMEOUT) -> str | None:
+    """OpenAI Chat Completions 호출 → 생성 텍스트. 실패 시 None(→ 템플릿 폴백)."""
+    key = _api_key()
+    if not key:
         return None
-    args = [cli, "-p", "--output-format", "text",
-            "--model", MODEL,
-            "--append-system-prompt", _SYSTEM,
-            "--disallowed-tools", *_BLOCK_TOOLS]
+    payload = {
+        "model": MODEL,
+        "messages": [
+            {"role": "system", "content": _SYSTEM},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.4,
+        "max_tokens": 800,
+    }
+    req = urllib.request.Request(
+        OPENAI_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+    )
     try:
-        # 중첩 세션이 프로젝트 파일을 뒤지지 않도록 중립 임시 디렉터리에서 실행
-        with tempfile.TemporaryDirectory() as cwd:
-            proc = subprocess.run(
-                args, input=prompt, capture_output=True, text=True,
-                timeout=timeout, cwd=cwd,
-            )
-        if proc.returncode == 0 and proc.stdout.strip():
-            return proc.stdout.strip()
-    except (subprocess.TimeoutExpired, OSError):
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+        text = (body.get("choices") or [{}])[0].get("message", {}).get("content", "") or ""
+        return text.strip() or None
+    except (urllib.error.URLError, TimeoutError, ValueError, KeyError, OSError):
         return None
-    return None
 
 
 # ---------------------------------------------------------------------------
@@ -196,14 +198,14 @@ def _template_whatif(base: dict, question: str, alt: dict | None) -> str:
 # 공개 API
 # ---------------------------------------------------------------------------
 def generate_report(pred: dict) -> dict:
-    text = _run_claude(build_report_prompt(pred))
+    text = _run_llm(build_report_prompt(pred))
     if text:
-        return {"text": text, "source": "claude", "model": MODEL}
+        return {"text": text, "source": "llm", "model": MODEL}
     return {"text": _template_report(pred), "source": "template", "model": None}
 
 
 def answer_whatif(base: dict, question: str, alt: dict | None) -> dict:
-    text = _run_claude(build_whatif_prompt(base, question, alt))
+    text = _run_llm(build_whatif_prompt(base, question, alt))
     if text:
-        return {"text": text, "source": "claude", "model": MODEL}
+        return {"text": text, "source": "llm", "model": MODEL}
     return {"text": _template_whatif(base, question, alt), "source": "template", "model": None}

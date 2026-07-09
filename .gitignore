@@ -9,6 +9,12 @@ venv/
 # 벤더링된 의존성 — 배포/클론 시엔 requirements.txt 로 재설치한다 (레포에 담지 않음)
 backend/vendor/
 
+# Secrets / 환경변수 — 절대 커밋 금지 (OPENAI_API_KEY 등)
+.env
+.env.local
+.env.*.local
+backend/.env
+
 # Vercel
 .vercel/
 

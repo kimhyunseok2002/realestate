@@ -78,6 +78,24 @@
     </div>
   </div>
 
+  <!-- 하단 자연어 채팅바: "경기 고양시에 치킨집 차리면 어떨까?" → 지도 이동 + 분석 -->
+  <div class="askbar" id="askbar">
+    <div class="ask-log" id="ask-log" aria-live="polite"></div>
+    <div class="ask-examples" id="ask-examples">
+      <button type="button" data-q="강남에 카페 차리면 어떨까?">강남 카페 ☕</button>
+      <button type="button" data-q="부산에서 헬스장 하면?">부산 헬스장 💪</button>
+      <button type="button" data-q="경기 고양시에 치킨집 차리면 어떨까?">고양시 치킨집 🍗</button>
+    </div>
+    <form class="ask-form" id="ask-form" autocomplete="off">
+      <span class="ask-ico" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><path d="m12 3 1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9L12 3Z"/><path d="M19 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8.8-2Z"/></svg></span>
+      <input id="ask-input" type="text" maxlength="200" enterkeyhint="send"
+             placeholder="예: 경기 고양시에 치킨집 차리면 어떨까?" aria-label="자연어로 상권 질문">
+      <button type="submit" class="ask-send" id="ask-send" aria-label="전송">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+      </button>
+    </form>
+  </div>
+
   <!-- 좌측 플로팅 패널 -->
   <aside class="panel" id="panel">
     <div class="panel-head">
@@ -284,7 +302,7 @@
 
         <div class="about-sec">
           <div class="eyebrow"><span class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M3 12h4l2.5 6L14 6l2 6h5"/></svg></span> 어떻게 예측하나 · ML 코어 + LLM 인터페이스</div>
-          <p class="about-p">예측 자체는 <b>생존분석 ML 엔진</b>(Cox 비례위험 · Weibull 기저생존 · Kaplan-Meier 실측 코호트 · 위험 분해)이 담당합니다. <b>LLM(Claude)</b>은 예측 엔진이 아니라, 그 숫자를 소상공인이 읽는 자연어로 <b>번역·설명하는 레이어</b>입니다 — 판단 대체 ✗ / 검증 지원 ✓.</p>
+          <p class="about-p">예측 자체는 <b>생존분석 ML 엔진</b>(Cox 비례위험 · Weibull 기저생존 · Kaplan-Meier 실측 코호트 · 위험 분해)이 담당합니다. <b>LLM(OpenAI GPT)</b>은 예측 엔진이 아니라, 그 숫자를 소상공인이 읽는 자연어로 <b>번역·설명하는 레이어</b>입니다 — 판단 대체 ✗ / 검증 지원 ✓.</p>
         </div>
 
         <div class="about-sec">

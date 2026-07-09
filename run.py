@@ -8,6 +8,25 @@ import os
 import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
+
+
+def _load_dotenv():
+    """프로젝트 루트의 .env(gitignore됨)를 os.environ에 로드 — 로컬 개발용.
+    의존성 없이 KEY=VALUE 한 줄씩 파싱하며, 이미 설정된 환경변수는 덮어쓰지 않는다.
+    (배포 환경(Vercel 등)은 대시보드 환경변수를 쓰므로 .env가 없어도 된다.)"""
+    path = os.path.join(ROOT, ".env")
+    if not os.path.exists(path):
+        return
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+
+_load_dotenv()
 sys.path.insert(0, os.path.join(ROOT, "backend", "vendor"))  # 로컬 설치 의존성
 sys.path.insert(0, ROOT)
 
