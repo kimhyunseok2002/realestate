@@ -23,11 +23,24 @@ import urllib.request
 
 from . import data
 
-# 모델: 리포트=번역 작업이라 경량·저가 모델을 기본으로. 환경변수로 교체 가능.
+# 모델: 기본 gpt-5.5. 환경변수 SANGKWON_LLM_MODEL 로 교체 가능.
+#   (더 저렴하게: gpt-5.4-mini, gpt-4o-mini 등. gpt-5.5 는 프리미엄 추론모델 $5/$30·1M토큰)
 MODEL = os.environ.get("SANGKWON_LLM_MODEL", "gpt-5.5")
 TIMEOUT = int(os.environ.get("SANGKWON_LLM_TIMEOUT", "60"))
 # 엔드포인트(호환 게이트웨이/프록시로도 교체 가능)
 OPENAI_URL = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/") + "/chat/completions"
+
+# GPT-5 계열·o-시리즈는 '추론모델'이라 Chat Completions 파라미터 규칙이 다르다:
+#   - max_tokens 거부 → max_completion_tokens 사용 (추론+출력 토큰 합산 상한)
+#   - 커스텀 temperature 거부 → 기본값(1)만 허용 (그래서 temperature 를 아예 안 보낸다)
+#   - reasoning_effort(none/low/medium/high/xhigh)로 추론량 제어
+# 우리 리포트는 숫자 '번역'이라 추론이 불필요 → 기본 effort='none'(비용·지연 최소).
+# gpt-4o·gpt-4.1 등 구형 모델이면 종전대로 temperature+max_tokens 를 쓴다.
+_REASONING = MODEL.lower().startswith(("gpt-5", "o1", "o3", "o4"))
+# effort 를 빈 문자열로 두면 파라미터 자체를 생략(effort 미지원 모델 대비 이스케이프 해치).
+_REASONING_EFFORT = os.environ.get("SANGKWON_LLM_REASONING_EFFORT", "none").strip()
+# 추론모델은 상한이 '추론+출력' 합산이라 여유 있게. (effort=none 이면 출력만 → 넉넉함)
+_MAX_OUT = int(os.environ.get("SANGKWON_LLM_MAX_TOKENS", "2048"))
 
 _SYSTEM = (
     "당신은 상권 분석 리포트를 쓰는 한국어 카피라이터입니다. "
@@ -59,9 +72,16 @@ def _run_llm(prompt: str, timeout: int = TIMEOUT) -> str | None:
             {"role": "system", "content": _SYSTEM},
             {"role": "user", "content": prompt},
         ],
-        "temperature": 0.4,
-        "max_tokens": 800,
     }
+    if _REASONING:
+        # GPT-5 계열: max_completion_tokens 필수, temperature 는 보내지 않음(기본1만 허용)
+        payload["max_completion_tokens"] = _MAX_OUT
+        if _REASONING_EFFORT:
+            payload["reasoning_effort"] = _REASONING_EFFORT
+    else:
+        # 구형 모델(gpt-4o/4.1 등): 종전대로 temperature + max_tokens
+        payload["temperature"] = 0.4
+        payload["max_tokens"] = 800
     req = urllib.request.Request(
         OPENAI_URL,
         data=json.dumps(payload).encode("utf-8"),

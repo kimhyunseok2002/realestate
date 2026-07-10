@@ -158,14 +158,16 @@ FastAPI (backend/app.py)  ── 오케스트레이션: 데이터 → 예측 →
 
 ---
 
-## LLM(Claude) 설정
+## LLM 설정 (OpenAI API)
 
-- 백엔드가 로컬 **Claude CLI** 를 `claude -p` (비대화 출력) 로 호출합니다. API 키 관리 불필요.
-- CLI 위치는 환경변수 `CLAUDE_CODE_EXECPATH` 로 자동 탐지, 없으면 템플릿 리포트로 폴백.
-- 모델·타임아웃 조정:
+- 백엔드가 **OpenAI Chat Completions API** 를 HTTP(urllib)로 직접 호출합니다. SDK 의존성이 없어 Vercel 서버리스에서도 그대로 동작합니다.
+- 키는 환경변수 **`OPENAI_API_KEY`** 로만 읽습니다(코드에 넣지 않음). 키가 없거나 호출 실패/타임아웃이면 **규칙 기반 템플릿**으로 자동 폴백 → LLM 없이도 서비스는 항상 동작.
+- 기본 모델은 **`gpt-5.5`**(추론모델). GPT-5 계열은 `max_completion_tokens`·`reasoning_effort` 규칙이 달라 코드가 모델을 감지해 파라미터를 자동 전환합니다(구형 `gpt-4o` 계열은 종전대로 `temperature`+`max_tokens`).
+- 모델·추론량·타임아웃 조정:
   ```bash
-  SANGKWON_LLM_MODEL=claude-sonnet-5 SANGKWON_LLM_TIMEOUT=90 python3 run.py
+  SANGKWON_LLM_MODEL=gpt-5.5 SANGKWON_LLM_REASONING_EFFORT=none SANGKWON_LLM_TIMEOUT=90 python3 run.py
   ```
+  - 리포트는 숫자 '번역' 작업이라 `reasoning_effort=none`(기본)으로 추론 토큰을 아껴 비용·지연을 최소화합니다. 더 저렴하게는 `SANGKWON_LLM_MODEL=gpt-5.4-mini` 등으로 교체.
 - 리포트 생성 시에만 호출되므로(예측 루프 밖) API 비용이 리포트 단가 대비 미미 — 문서의 마진 논리와 일치.
 
 ---
