@@ -1383,3 +1383,94 @@ input[type=text]:focus { border-color: var(--brand); box-shadow: var(--ring); }
 .ask-msg .ask-src { display: block; margin-top: 6px; font-family: var(--font-mono); font-size: 10.5px;
   font-weight: 700; letter-spacing: .02em; color: var(--brand-ink); opacity: .85; }
 .ask-msg.user .ask-src { display: none; }
+
+/* ==========================================================================
+   시작(인트로) 화면 — 라이브 지도 배경 + 미니멀 스크림 (심플·프리미엄)
+   ========================================================================== */
+.intro {
+  position: fixed; inset: 0; z-index: 9000; overflow: hidden;
+  display: flex; flex-direction: column;
+  /* 뒤의 실제 지도가 은은하게 비치는 밝은 스크림 */
+  background: linear-gradient(to bottom,
+    rgba(255,255,255,.92) 0%, rgba(255,255,255,.62) 30%,
+    rgba(255,255,255,.42) 55%, rgba(255,255,255,.78) 100%);
+  -webkit-backdrop-filter: blur(3px) saturate(1.1);
+  backdrop-filter: blur(3px) saturate(1.1);
+  transition: opacity .65s ease;
+}
+.intro--leaving { opacity: 0; pointer-events: none; }
+.intro--hidden { display: none; }
+
+/* 인트로가 떠 있는 동안 배경 지도 슬로우 줌 (켄번즈) + 풀스크린(모바일 62% 오버라이드) */
+body.intro-open #map { will-change: transform; transform-origin: 50% 42%;
+  height: 100% !important;
+  animation: intro-kenburns 46s ease-in-out infinite alternate; }
+@keyframes intro-kenburns { from { transform: scale(1); } to { transform: scale(1.09); } }
+
+/* 인트로 동안 앱 UI(패널·툴바·채팅바 등) 숨김 — 순수 지도만 배경으로.
+   닫힐 때 클래스가 빠지면서 앱 UI가 부드럽게 페이드인 */
+body > :not(#intro):not(#map) { transition: opacity .55s ease; }
+body.intro-open > :not(#intro):not(#map) { opacity: 0 !important; pointer-events: none !important; }
+
+/* 인트로 동안 지도 버블이 부표처럼 잔잔히 둥실거림 —
+   Leaflet 배치 transform은 .bubble-wrap 에 있으므로 안쪽 .bubble 만 움직인다(충돌 없음).
+   nth-child 로 주기·위상·진폭을 흩뜨려 군집이 제각각 자연스럽게 뜨도록. */
+body.intro-open .bubble { animation: intro-buoy 5.4s ease-in-out infinite; }
+body.intro-open .bubble-wrap:nth-child(2n)  .bubble { animation-duration: 6.3s; animation-delay: -2.1s; }
+body.intro-open .bubble-wrap:nth-child(3n)  .bubble { animation-name: intro-buoy-lg; animation-duration: 7.1s; animation-delay: -3.4s; }
+body.intro-open .bubble-wrap:nth-child(5n)  .bubble { animation-duration: 4.8s; animation-delay: -1.2s; }
+body.intro-open .bubble-wrap:nth-child(7n)  .bubble { animation-name: intro-buoy-lg; animation-duration: 5.9s; animation-delay: -4.6s; }
+body.intro-open .bubble-wrap:nth-child(11n) .bubble { animation-duration: 6.8s; animation-delay: -0.7s; }
+@keyframes intro-buoy    { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes intro-buoy-lg { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+/* ---- 로고 (상단, 텍스트만) ---- */
+.intro-logo { position: relative; z-index: 2; padding: 28px 34px;
+  animation: introDown .7s .1s both cubic-bezier(.2,.8,.2,1); }
+.intro-word { font-size: 25px; font-weight: 800; letter-spacing: -.035em; color: var(--brand); }
+
+/* ---- 가운데 (타이틀 + 버튼) ---- */
+.intro-center { position: relative; z-index: 2; margin: auto; text-align: center; padding: 0 24px 9vh;
+  display: flex; flex-direction: column; align-items: center; }
+.intro-title { font-size: clamp(32px, 5.6vw, 56px); font-weight: 800; line-height: 1.18; letter-spacing: -.035em;
+  color: var(--ink); animation: introUp .8s .2s both cubic-bezier(.2,.8,.2,1); }
+.intro-title b { font-weight: 800; color: var(--brand); }
+.intro-sub { margin-top: 16px; font-size: clamp(15px, 2.2vw, 19px); color: var(--ink-2);
+  font-weight: 500; animation: introUp .8s .32s both cubic-bezier(.2,.8,.2,1); }
+.intro-start { margin-top: 38px; display: inline-flex; align-items: center; gap: 9px;
+  padding: 17px 34px; border: none; border-radius: 999px; color: #fff; font-size: 18px; font-weight: 700;
+  cursor: pointer; background: var(--brand); box-shadow: 0 8px 24px rgba(49,130,246,.35);
+  animation: introUp .8s .44s both cubic-bezier(.2,.8,.2,1);
+  transition: transform .18s cubic-bezier(.2,.8,.2,1), box-shadow .18s ease, background .18s ease; }
+.intro-start .icon { width: 20px; height: 20px; transition: transform .18s ease; }
+.intro-start:hover { transform: translateY(-2px); background: var(--brand-ink);
+  box-shadow: 0 14px 36px rgba(49,130,246,.45); }
+.intro-start:hover .icon { transform: translateX(4px); }
+.intro-start:active { transform: translateY(0); }
+.intro-hint { margin-top: 18px; font-size: 13px; color: var(--muted); font-weight: 500;
+  animation: introUp .8s .56s both cubic-bezier(.2,.8,.2,1); }
+
+@keyframes introUp   { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+@keyframes introDown { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: none; } }
+
+/* 다크 모드: 스크림만 어둡게 (텍스트 색은 토큰이 자동 전환) */
+:root[data-theme="dark"] .intro {
+  background: linear-gradient(to bottom,
+    rgba(10,13,18,.92) 0%, rgba(10,13,18,.64) 30%,
+    rgba(10,13,18,.46) 55%, rgba(10,13,18,.8) 100%);
+}
+:root[data-theme="dark"] .intro-start:hover { background: var(--brand-2); }
+
+@media (max-width: 640px) {
+  .intro-logo { padding: 20px 22px; }
+  .intro-word { font-size: 21px; }
+  .intro-center { padding-bottom: 12vh; }
+}
+
+/* 모션 최소화 선호 시: 등장 애니메이션·지도 줌·버블 플로팅 정지 */
+@media (prefers-reduced-motion: reduce) {
+  .intro, .intro * { animation: none !important; }
+  body.intro-open #map { animation: none !important; }
+  body.intro-open .bubble { animation: none !important; }
+  .intro-title, .intro-sub, .intro-hint, .intro-logo { opacity: 1; transform: none; }
+}

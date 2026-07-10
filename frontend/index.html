@@ -12,6 +12,23 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
+  <!-- ===== 시작(인트로) 화면 — 라이브 지도 배경 · 미니멀 ===== -->
+  <div id="intro" class="intro" role="dialog" aria-modal="true" aria-label="살아남을지도 시작 화면">
+    <header class="intro-logo">
+      <span class="intro-word">SurviMap</span>
+    </header>
+
+    <main class="intro-center">
+      <h1 class="intro-title">어디서 창업해야<br><b>살아남을</b> 수 있을까?</h1>
+      <p class="intro-sub">입지·업종별 상권 생존율을 지도 위에서 예측합니다</p>
+      <button type="button" id="intro-start" class="intro-start">
+        <span>사용해보기</span>
+        <svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+      </button>
+      <p class="intro-hint">서울·경기·전국 상권 · 실데이터 기반 생존 예측</p>
+    </main>
+  </div>
+
   <!-- 전체화면 지도 (호갱노노식) -->
   <div id="map"></div>
 
@@ -107,6 +124,10 @@
         <div class="head-actions">
           <button class="about-btn account-btn" id="account-btn" type="button" aria-haspopup="dialog"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span>로그인</span></button>
           <div class="head-row2">
+            <button class="about-btn" id="intro-btn" type="button" title="시작화면으로 돌아가기">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/></svg>
+              <span>시작화면</span>
+            </button>
             <button class="about-btn icon-btn" id="theme-btn" type="button" aria-label="다크 모드로"></button>
             <button class="about-btn" id="about-btn" type="button" aria-haspopup="dialog" aria-expanded="false">
               <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg>
@@ -489,5 +510,60 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="/app.js"></script>
+
+  <!-- 시작 화면: 라이브 지도 배경(켄번즈 줌) + '사용해보기' 전환 + '시작화면' 복귀 -->
+  <script>
+  (function () {
+    var intro = document.getElementById("intro");
+    if (!intro) return;
+    var mapEl = document.getElementById("map");
+
+    function show() {
+      intro.classList.remove("intro--hidden", "intro--leaving");
+      // 지도 슬로우 줌 + 앱 UI 숨김 (모션 최소화 선호 시 줌은 CSS에서 자동 정지)
+      document.body.classList.add("intro-open");
+      // 모바일에서 지도가 62%→100% 로 커지므로 타일 재계산
+      setTimeout(function () {
+        try { if (typeof state !== "undefined" && state.map) state.map.invalidateSize(); } catch (e) {}
+      }, 60);
+    }
+
+    function hide() {
+      if (intro.classList.contains("intro--leaving") || intro.classList.contains("intro--hidden")) return;
+      intro.classList.add("intro--leaving");
+      try { sessionStorage.setItem("survimap_intro_done", "1"); } catch (e) {}
+      // 켄번즈로 확대된 지도를 현재 배율에서 1.0으로 부드럽게 복귀
+      if (mapEl && document.body.classList.contains("intro-open")) {
+        var t = getComputedStyle(mapEl).transform;
+        mapEl.style.transform = (t && t !== "none") ? t : "scale(1.001)";
+        document.body.classList.remove("intro-open");
+        mapEl.style.transition = "transform .9s cubic-bezier(.4,0,.2,1)";
+        requestAnimationFrame(function () { mapEl.style.transform = "scale(1)"; });
+        setTimeout(function () {
+          mapEl.style.transition = ""; mapEl.style.transform = "";
+          try { if (typeof state !== "undefined" && state.map) state.map.invalidateSize(); } catch (e) {}
+        }, 950);
+      }
+      setTimeout(function () { intro.classList.add("intro--hidden"); }, 700);
+    }
+
+    // 같은 탭 세션에서 이미 본 경우 건너뛰기 ('시작화면' 버튼으로 언제든 복귀)
+    var seen = false;
+    try { seen = !!sessionStorage.getItem("survimap_intro_done"); } catch (e) {}
+    if (seen) intro.classList.add("intro--hidden");
+    else show();
+
+    var startBtn = document.getElementById("intro-start");
+    if (startBtn) {
+      startBtn.addEventListener("click", hide);
+      if (!seen) setTimeout(function () { try { startBtn.focus({ preventScroll: true }); } catch (e) {} }, 400);
+    }
+    var homeBtn = document.getElementById("intro-btn");
+    if (homeBtn) homeBtn.addEventListener("click", show);
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && !intro.classList.contains("intro--hidden")) hide();
+    });
+  })();
+  </script>
 </body>
 </html>
